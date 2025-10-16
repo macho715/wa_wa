@@ -1,6 +1,6 @@
 # 🎉 MACHO-GPT v3.5-optimal 최적 WhatsApp 스크래핑 시스템
 
-> **Samsung C&T Logistics · HVDC Project · ADNOC·DSV Partnership**  
+> **Samsung C&T Logistics · HVDC Project · ADNOC·DSV Partnership**
 > **검증된 성공 시스템 + 최적화된 Enhancement = 최고 성능의 WhatsApp 스크래핑 솔루션**
 
 ## 🎯 프로젝트 개요

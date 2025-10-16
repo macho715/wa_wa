@@ -45,6 +45,14 @@ scraper_settings:
   max_parallel_groups: 5
   retry_attempts: 3
   session_persistence: true
+  
+  # 백엔드 설정 (whatsapp-web.js 통합)
+  backend: "playwright"  # playwright, webjs, auto
+  webjs_fallback: true   # Playwright 실패 시 자동 전환
+  webjs_settings:
+    script_dir: "setup/whatsapp_webjs"
+    timeout: 300  # 5분
+    auto_install_deps: true
 
 # Tier 2: Enhancement Settings (선택적)
 enhancements:

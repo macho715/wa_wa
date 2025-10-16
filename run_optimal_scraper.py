@@ -227,6 +227,20 @@ def main():
         "--setup", choices=["manual-auth", "alternative"], help="설정 도구 실행"
     )
 
+    # 백엔드 옵션 (whatsapp-web.js 통합)
+    parser.add_argument(
+        "--backend",
+        choices=["playwright", "webjs", "auto"],
+        default="playwright",
+        help="스크래핑 백엔드 선택 (기본: playwright)",
+    )
+
+    parser.add_argument(
+        "--webjs-fallback",
+        action="store_true",
+        help="Playwright 실패 시 whatsapp-web.js로 자동 전환",
+    )
+
     # 스크래핑 옵션
     parser.add_argument("--groups", nargs="+", help="스크래핑할 그룹 이름들")
 

@@ -14,9 +14,9 @@ console.log('🔍 Node.js 환경 확인 중...\n');
 try {
     const nodeVersion = process.version;
     const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
-    
+
     console.log(`✅ Node.js 버전: ${nodeVersion}`);
-    
+
     if (majorVersion < 14) {
         console.log('❌ Node.js 14.0.0 이상이 필요합니다.');
         process.exit(1);
@@ -50,11 +50,11 @@ if (fs.existsSync(packageJsonPath)) {
 const nodeModulesPath = path.join(__dirname, 'node_modules');
 if (fs.existsSync(nodeModulesPath)) {
     console.log('✅ node_modules 디렉토리 존재');
-    
+
     // 필수 패키지 확인
     const requiredPackages = ['whatsapp-web.js', 'qrcode-terminal', 'puppeteer'];
     let allPackagesInstalled = true;
-    
+
     for (const pkg of requiredPackages) {
         const pkgPath = path.join(nodeModulesPath, pkg);
         if (fs.existsSync(pkgPath)) {
@@ -64,7 +64,7 @@ if (fs.existsSync(nodeModulesPath)) {
             allPackagesInstalled = false;
         }
     }
-    
+
     if (!allPackagesInstalled) {
         console.log('\n📦 의존성 패키지 설치가 필요합니다.');
         console.log('다음 명령어를 실행하세요: npm install');
