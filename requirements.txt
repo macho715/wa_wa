@@ -1,0 +1,84 @@
+# WhatsApp 업무 요약 대시보드 - Requirements
+# Samsung C&T Logistics · HVDC Project
+# MACHO-GPT v3.4-mini
+
+# Core Framework
+streamlit>=1.28.0
+pandas>=1.5.0
+numpy>=1.24.0
+
+# AI and NLP
+openai>=1.3.0
+tiktoken>=0.5.0
+
+# RPA and Web Automation
+playwright>=1.40.0
+selenium>=4.15.0  # fallback option
+
+# Data Processing
+pyyaml>=6.0.1
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# File and Data Handling
+pathlib2>=2.3.7
+jsonschema>=4.19.0
+openpyxl>=3.1.2  # Excel export support
+
+# Logging and Monitoring
+loguru>=0.7.2
+watchdog>=3.0.0
+
+# Web and API
+requests>=2.31.0
+httpx>=0.25.0
+aiohttp>=3.8.0
+
+# Configuration and Environment
+python-dotenv>=1.0.0
+click>=8.1.7
+typer>=0.9.0
+
+# Security and Authentication
+cryptography>=41.0.0
+keyring>=24.2.0
+
+# Optional: Enhanced Text Processing
+regex>=2023.8.8
+beautifulsoup4>=4.12.0
+lxml>=4.9.3
+
+# Optional: Database Support
+sqlite-utils>=3.34.0
+psycopg2-binary>=2.9.7  # PostgreSQL support
+
+# Optional: Notification Systems
+plyer>=2.1.0  # Desktop notifications
+schedule>=1.2.0  # Task scheduling
+
+# Optional: Data Visualization
+plotly>=5.17.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Development and Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.7.0
+flake8>=6.0.0
+
+# Windows-specific dependencies
+pywin32>=306; sys_platform == "win32"
+wincertstore>=0.2; sys_platform == "win32"
+
+# macOS-specific dependencies
+pyobjc-core>=9.2; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=9.2; sys_platform == "darwin"
+
+# MACHO-GPT v3.4-mini Workflow Management
+pydantic>=2.0.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Optional dependencies (for enhanced features)
+pyperclip>=1.8.2 

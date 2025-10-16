@@ -1,0 +1,58 @@
+[tool.pyright]
+reportMissingImports = "warning"
+reportMissingTypeStubs = "none"
+reportUnusedImport = "warning"
+reportUnusedVariable = "warning"
+pythonVersion = "3.11"
+strictParameterNoneValue = false
+strictDictionaryInference = false
+strictListInference = false
+
+[tool.pyright.include]
+include = [
+    "**/*.py"
+]
+
+[tool.pyright.exclude]
+exclude = [
+    "**/__pycache__",
+    "**/node_modules",
+    ".venv",
+    "venv"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "macho-gpt-whatsapp"
+version = "3.4.0"
+description = "MACHO-GPT v3.4-mini WhatsApp Integration System"
+dependencies = [
+    "streamlit>=1.28.0",
+    "openai>=1.0.0",
+    "pandas>=2.0.0",
+    "playwright>=1.40.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "pydantic>=2.0.0",
+    "python-multipart>=0.0.6",
+    "playwright-stealth>=1.0.6"
+]
+
+[tool.setuptools]
+packages = ["macho_gpt", "macho_gpt.core", "macho_gpt.rpa"]
+py-modules = [
+    "whatsapp_executive_dashboard",
+    "simplified_whatsapp_app", 
+    "run_app",
+    "extract_whatsapp_auto"
+]
+
+[tool.setuptools.package-dir]
+"" = "."
+
+[tool.pyright.python]
+venvPath = "."
+venv = "venv" 

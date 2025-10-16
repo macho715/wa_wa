@@ -1,0 +1,21 @@
+# OpenAI API Configuration for MACHO-GPT WhatsApp Analysis
+openai:
+  api_key: "your_openai_api_key_here"
+  model: "gpt-4"
+  max_tokens: 2000
+  temperature: 0.7
+  timeout: 30
+
+# Analysis Settings
+analysis:
+  language: "ko"  # Korean analysis
+  summary_length: "medium"  # short/medium/long
+  include_keywords: true
+  include_sentiment: true
+  include_actions: true
+
+# Logging
+logging:
+  level: "INFO"
+  save_analysis: true
+  output_format: "json" 

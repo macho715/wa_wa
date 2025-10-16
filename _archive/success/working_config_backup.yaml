@@ -1,0 +1,30 @@
+# MACHO-GPT v3.4-mini 멀티 그룹 WhatsApp 스크래핑 설정
+# Samsung C&T Logistics · HVDC Project
+
+whatsapp_groups:
+  - name: "MR.CHA 전용"
+    save_file: "data/messages_mr_cha.json"
+    scrape_interval: 60
+    priority: "HIGH"
+
+  - name: "ADNOC Berth Coordination"
+    save_file: "data/messages_adnoc_berth.json"
+    scrape_interval: 120
+    priority: "MEDIUM"
+
+  - name: "Logistics Team"
+    save_file: "data/messages_logistics.json"
+    scrape_interval: 90
+    priority: "MEDIUM"
+
+scraper_settings:
+  chrome_data_dir: "chrome-data"
+  headless: true
+  timeout: 30000
+  max_parallel_groups: 5
+
+ai_integration:
+  enabled: true
+  summarize_on_extraction: true
+  confidence_threshold: 0.90
+

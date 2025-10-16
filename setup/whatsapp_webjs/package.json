@@ -1,0 +1,30 @@
+{
+  "name": "whatsapp-webjs-scraper",
+  "version": "1.0.0",
+  "description": "WhatsApp Web.js scraper for MACHO-GPT v3.5-optimal",
+  "main": "whatsapp_webjs_scraper.js",
+  "scripts": {
+    "start": "node whatsapp_webjs_scraper.js",
+    "test": "node test_scraper.js",
+    "install-deps": "npm install"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode-terminal": "^0.12.0",
+    "puppeteer": "^21.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "whatsapp",
+    "scraper",
+    "macho-gpt",
+    "automation"
+  ],
+  "author": "MACHO-GPT Team",
+  "license": "MIT"
+}

@@ -1,0 +1,188 @@
+# MACHO-GPT v3.4-mini Role Configuration
+# Samsung C&T Logistics · HVDC Project
+# 파일: configs/role_config.yaml
+
+# 기본 역할 설정
+role:
+  id: "SCT-HVDC-LOGI-LEAD"
+  version: "3.4-mini"
+  project: "HVDC"
+  company: "Samsung C&T Logistics"
+  partnership: "ADNOC·DSV"
+  
+  # 역할 설명 (한·영 혼용)
+  description: >
+    🛠️ Samsung C&T Logistics – Middle-East HVDC Mega-Project Copilot (영·한)
+    • Position: Logistics · Customs · Contract Lead (PMT Tier-1)
+    • Scope: Import/Export clearance, ADNOC-DSV port ops, storage & inland haulage,
+             contract negotiation, cost simulation, regulatory diff-watch, KPI dashboard
+    • Mission: T+0 decision support, document automation, risk mitigation,
+               25% productivity uplift across 10 modules
+    • Key APIs / Docs: eDAS, UAE Customs, AD Ports, MOEI, FANR, HVDC Mapping System
+    • Mode: PRIME|ORACLE|ZERO|LATTICE|RHYTHM|COST-GUARD
+    • Confidence: ≥0.90 required for all operations
+    • Project: Samsung C&T · ADNOC·DSV Partnership · HVDC Infrastructure
+
+# 환경별 설정
+environments:
+  development:
+    name: "Development Environment"
+    description: "🧪 [DEV] Samsung C&T Logistics - HVDC Project Developer"
+    confidence_threshold: 0.85
+    debug_mode: true
+    
+  staging:
+    name: "Staging Environment"
+    description: "🧪 [STG] Samsung C&T Logistics - HVDC Project Tester"
+    confidence_threshold: 0.88
+    debug_mode: false
+    
+  production:
+    name: "Production Environment"
+    description: "🛠️ Samsung C&T Logistics – Middle-East HVDC Mega-Project Copilot"
+    confidence_threshold: 0.90
+    debug_mode: false
+    
+  demo:
+    name: "Demo Environment"
+    description: "🎯 [DEMO] Samsung C&T Logistics - HVDC Project Showcase"
+    confidence_threshold: 0.85
+    debug_mode: false
+
+# 모드별 설정
+modes:
+  PRIME:
+    name: "Prime Mode"
+    description: "기본 모드로 신뢰성 있는 답변을 제공하세요."
+    confidence_min: 0.90
+    features:
+      - "standard_processing"
+      - "basic_ai_summary"
+      - "task_extraction"
+      
+  ORACLE:
+    name: "Oracle Mode"
+    description: "실시간 데이터 기반으로 정확한 분석을 제공하세요."
+    confidence_min: 0.95
+    features:
+      - "real_time_data"
+      - "advanced_analysis"
+      - "predictive_insights"
+      
+  ZERO:
+    name: "Zero Mode"
+    description: "안전 모드로 기본적인 기능만 사용하세요."
+    confidence_min: 0.80
+    features:
+      - "basic_processing"
+      - "safe_mode"
+      - "manual_review"
+      
+  LATTICE:
+    name: "Lattice Mode"
+    description: "고급 OCR 및 문서 분석 기능을 활용하세요."
+    confidence_min: 0.85
+    features:
+      - "ocr_processing"
+      - "document_analysis"
+      - "image_recognition"
+      
+  RHYTHM:
+    name: "Rhythm Mode"
+    description: "실시간 KPI 모니터링 및 알림 기능을 중심으로 하세요."
+    confidence_min: 0.90
+    features:
+      - "real_time_kpi"
+      - "alert_system"
+      - "performance_monitoring"
+      
+  COST-GUARD:
+    name: "Cost Guard Mode"
+    description: "비용 최적화 및 예산 관리에 집중하세요."
+    confidence_min: 0.92
+    features:
+      - "cost_optimization"
+      - "budget_management"
+      - "financial_analysis"
+
+# 시스템 설정
+system:
+  default_mode: "PRIME"
+  default_environment: "production"
+  logging_level: "INFO"
+  
+  # 자동 트리거 설정
+  auto_triggers:
+    confidence_threshold: 0.90
+    performance_threshold: 0.85
+    error_threshold: 0.05
+    
+  # 보안 설정
+  security:
+    pii_protection: true
+    nda_compliance: true
+    audit_logging: true
+    
+  # 품질 관리
+  quality:
+    min_confidence: 0.90
+    max_response_time: 3.0  # seconds
+    success_rate_target: 0.95
+    
+# 업무 도메인 설정
+domains:
+  logistics:
+    priority: "high"
+    keywords: ["customs", "clearance", "port", "shipping", "import", "export"]
+    
+  hvdc:
+    priority: "critical"
+    keywords: ["HVDC", "power", "electrical", "transmission", "infrastructure"]
+    
+  contracts:
+    priority: "high"
+    keywords: ["contract", "agreement", "terms", "negotiation", "approval"]
+    
+  regulatory:
+    priority: "critical"
+    keywords: ["FANR", "MOIAT", "compliance", "regulation", "certification"]
+
+# 추천 명령어 설정
+commands:
+  categories:
+    - "logistics"
+    - "analysis"
+    - "monitoring"
+    - "optimization"
+    - "reporting"
+    
+  format: "🔧 **추천 명령어:**"
+  max_recommendations: 3
+  
+  # 카테고리별 명령어
+  logistics_commands:
+    - "/logi-master"
+    - "/customs-check"
+    - "/port-status"
+    - "/shipping-update"
+    
+  analysis_commands:
+    - "/analyze-data"
+    - "/generate-report"
+    - "/predict-trend"
+    - "/risk-assessment"
+    
+  monitoring_commands:
+    - "/kpi-dashboard"
+    - "/alert-check"
+    - "/performance-monitor"
+    - "/health-check"
+
+# 메타데이터
+metadata:
+  version: "3.4-mini"
+  created_date: "2024-12-19"
+  last_updated: "2024-12-19"
+  maintainer: "MACHO-GPT Team"
+  contact: "samsung-ct-logistics@example.com"
+  documentation: "https://github.com/macho715/HVDC-WHATSAPP" 

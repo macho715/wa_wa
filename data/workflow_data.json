@@ -1,0 +1,209 @@
+{
+  "chat_rooms": [
+    {
+      "id": "4e9cc668-f38d-459f-92fa-ea6cba20608a",
+      "name": "마케팅팀",
+      "type": "team",
+      "members": [
+        "김민수",
+        "이영희",
+        "박철수"
+      ],
+      "active": true,
+      "created_by": "system",
+      "description": "마케팅 전략 및 캠페인 기획",
+      "tags": [
+        "marketing",
+        "campaign",
+        "strategy"
+      ],
+      "parent_room_id": null,
+      "child_room_ids": [],
+      "connected_tasks": [
+        "c085479e-dddf-4671-a67b-0e21af9449bd"
+      ],
+      "priority": "medium",
+      "last_activity": "2025-10-17T01:57:15.667501",
+      "confidence": 0.9,
+      "auto_archive_days": 30
+    },
+    {
+      "id": "8fa45414-f4e4-44e7-a7a6-7b8e6af95981",
+      "name": "개발팀",
+      "type": "team",
+      "members": [
+        "정수민",
+        "한지우",
+        "최동혁"
+      ],
+      "active": true,
+      "created_by": "system",
+      "description": "시스템 개발 및 기술 지원",
+      "tags": [
+        "development",
+        "tech",
+        "system"
+      ],
+      "parent_room_id": null,
+      "child_room_ids": [],
+      "connected_tasks": [
+        "62dd58b5-3071-4a81-b6ce-6b35f8ffb17d"
+      ],
+      "priority": "high",
+      "last_activity": "2025-10-17T01:57:15.668090",
+      "confidence": 0.9,
+      "auto_archive_days": 30
+    },
+    {
+      "id": "ddee6884-b874-4c64-9374-4e0afdef8a3f",
+      "name": "디자인팀",
+      "type": "team",
+      "members": [
+        "김디자",
+        "이시안",
+        "박UI"
+      ],
+      "active": true,
+      "created_by": "system",
+      "description": "UI/UX 디자인 및 브랜딩",
+      "tags": [
+        "design",
+        "ui",
+        "branding"
+      ],
+      "parent_room_id": null,
+      "child_room_ids": [],
+      "connected_tasks": [],
+      "priority": "medium",
+      "last_activity": "2025-10-17T01:57:15.668373",
+      "confidence": 0.9,
+      "auto_archive_days": 30
+    },
+    {
+      "id": "a0f99977-3ada-4932-843e-aef7e3e6851d",
+      "name": "영업팀",
+      "type": "team",
+      "members": [
+        "정영업",
+        "한세일",
+        "최고객"
+      ],
+      "active": true,
+      "created_by": "system",
+      "description": "고객 관리 및 영업 활동",
+      "tags": [
+        "sales",
+        "customer",
+        "business"
+      ],
+      "parent_room_id": null,
+      "child_room_ids": [],
+      "connected_tasks": [],
+      "priority": "urgent",
+      "last_activity": "2025-10-17T01:57:15.668606",
+      "confidence": 0.9,
+      "auto_archive_days": 30
+    },
+    {
+      "id": "98b86c8f-8fe6-475d-b62d-df6ba244810a",
+      "name": "경영진",
+      "type": "meeting",
+      "members": [
+        "최대표",
+        "김이사",
+        "박부장"
+      ],
+      "active": true,
+      "created_by": "system",
+      "description": "경영 의사결정 및 전략 수립",
+      "tags": [
+        "management",
+        "strategy",
+        "decision"
+      ],
+      "parent_room_id": null,
+      "child_room_ids": [],
+      "connected_tasks": [],
+      "priority": "critical",
+      "last_activity": "2025-10-17T01:57:15.668861",
+      "confidence": 0.9,
+      "auto_archive_days": 30
+    },
+    {
+      "id": "28451544-5e2b-4deb-9560-fc5a578dd3dd",
+      "name": "HVDC 프로젝트",
+      "type": "project",
+      "members": [
+        "프로젝트매니저",
+        "기술리더",
+        "품질관리자"
+      ],
+      "active": true,
+      "created_by": "system",
+      "description": "Samsung C&T HVDC 프로젝트 전용",
+      "tags": [
+        "hvdc",
+        "samsung",
+        "project",
+        "logistics"
+      ],
+      "parent_room_id": null,
+      "child_room_ids": [],
+      "connected_tasks": [],
+      "priority": "medium",
+      "last_activity": "2025-10-17T01:57:15.669121",
+      "confidence": 0.9,
+      "auto_archive_days": 30
+    }
+  ],
+  "tasks": [
+    {
+      "id": "c085479e-dddf-4671-a67b-0e21af9449bd",
+      "title": "신규 캠페인 기획",
+      "description": "Q1 신규 제품 런칭을 위한 마케팅 캠페인 기획 및 실행",
+      "status": "pending",
+      "priority": "high",
+      "assignee": "김민수",
+      "created_by": "system",
+      "chat_room_id": "4e9cc668-f38d-459f-92fa-ea6cba20608a",
+      "due_date": "2025-10-31T01:57:15.669436",
+      "dependencies": [],
+      "tags": [
+        "campaign",
+        "launch",
+        "q1"
+      ],
+      "progress": 0.0,
+      "confidence": 0.85,
+      "created_at": "2025-10-17T01:57:15.669468",
+      "updated_at": "2025-10-17T01:57:15.669470"
+    },
+    {
+      "id": "62dd58b5-3071-4a81-b6ce-6b35f8ffb17d",
+      "title": "시스템 성능 최적화",
+      "description": "대시보드 응답 시간 개선 및 데이터베이스 쿼리 최적화",
+      "status": "pending",
+      "priority": "medium",
+      "assignee": "정수민",
+      "created_by": "system",
+      "chat_room_id": "8fa45414-f4e4-44e7-a7a6-7b8e6af95981",
+      "due_date": "2025-10-24T01:57:15.670550",
+      "dependencies": [],
+      "tags": [
+        "optimization",
+        "performance",
+        "database"
+      ],
+      "progress": 0.0,
+      "confidence": 0.85,
+      "created_at": "2025-10-17T01:57:15.670631",
+      "updated_at": "2025-10-17T01:57:15.670634"
+    }
+  ],
+  "metadata": {
+    "version": "3.4-mini",
+    "last_updated": "2025-10-17T01:57:15.671199",
+    "total_rooms": 6,
+    "total_tasks": 2
+  }
+}

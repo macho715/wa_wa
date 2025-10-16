@@ -1,0 +1,114 @@
+# MACHO-GPT v3.5-optimal 멀티 그룹 WhatsApp 스크래핑 설정
+# Samsung C&T Logistics · HVDC Project · ADNOC·DSV Partnership
+# 최적 조합: 검증된 성공 시스템 + Enhancement 통합
+
+version: "3.5-optimal"
+description: "최적화된 WhatsApp 멀티 그룹 스크래핑 설정"
+
+# Tier 1: Core System (필수 - 검증된 성공 시스템)
+whatsapp_groups:
+  - name: "HVDC 물류팀"
+    save_file: "data/messages_hvdc_logistics.json"
+    scrape_interval: 60
+    priority: "HIGH"
+    max_messages: 50
+
+  - name: "[HVDC] ⚡ Project lightning ⚡"
+    save_file: "data/messages_hvdc_lightning.json"
+    scrape_interval: 90
+    priority: "MEDIUM"
+    max_messages: 50
+
+  - name: "MR.CHA 전용"
+    save_file: "data/messages_mr_cha.json"
+    scrape_interval: 60
+    priority: "HIGH"
+    max_messages: 50
+
+  - name: "ADNOC Berth Coordination"
+    save_file: "data/messages_adnoc_berth.json"
+    scrape_interval: 120
+    priority: "MEDIUM"
+    max_messages: 50
+
+  - name: "Logistics Team"
+    save_file: "data/messages_logistics.json"
+    scrape_interval: 90
+    priority: "MEDIUM"
+    max_messages: 50
+
+# Tier 1: Core Scraper Settings
+scraper_settings:
+  chrome_data_dir: "chrome-data"
+  headless: true
+  timeout: 30000
+  max_parallel_groups: 5
+  retry_attempts: 3
+  session_persistence: true
+
+# Tier 2: Enhancement Settings (선택적)
+enhancements:
+  loading_optimizer:
+    enabled: true
+    network_idle_wait: true
+    multi_selector_backup: true
+    debug_screenshots: false
+    retry_with_backoff: true
+
+  stealth_features:
+    enabled: false  # 필요시 활성화
+    user_agent_rotation: true
+    captcha_detection: true
+    human_behavior: true
+    random_delays: true
+
+# AI Integration (MACHO-GPT)
+ai_integration:
+  enabled: true
+  summarize_on_extraction: true
+  confidence_threshold: 0.90
+  auto_trigger_threshold: 0.95
+
+# Performance Settings
+performance:
+  max_concurrent_groups: 3
+  memory_limit_mb: 2048
+  cpu_limit_percent: 80
+  disk_cleanup_interval: 3600  # seconds
+
+# Logging Settings
+logging:
+  level: "INFO"
+  file: "logs/optimal_scraper.log"
+  max_size_mb: 100
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Monitoring & Alerts
+monitoring:
+  health_check_interval: 300  # seconds
+  alert_on_failure: true
+  alert_on_captcha: true
+  performance_tracking: true
+
+# Backup & Recovery
+backup:
+  enabled: true
+  interval_hours: 6
+  max_backups: 7
+  compress: true
+  location: "backups/"
+
+# Development Tools (Tier 3)
+development:
+  dom_analyzer_enabled: false
+  quick_test_mode: false
+  status_monitoring: true
+  debug_mode: false
+
+# Setup & Authentication (Tier 4)
+setup:
+  manual_auth_enabled: true
+  alternative_methods_enabled: true
+  qr_code_display: true
+  session_backup: true

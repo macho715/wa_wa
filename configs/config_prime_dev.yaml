@@ -1,0 +1,140 @@
+# config_prime_dev.yaml
+# MACHO-GPT v3.4-mini WhatsApp 업무 요약 시스템
+# Samsung C&T Logistics · HVDC Project
+# 개발환경 설정 파일
+
+system:
+  version: "v3.4-mini"
+  project: "WHATSAPP_SUMMARY_DASHBOARD"
+  mode: "PRIME"
+  timezone: "Europe/London"
+  
+# 운영 모드별 설정
+modes:
+  PRIME:
+    confidence_min: 0.95
+    auto_triggers: true
+    ai_model: "gpt-4o-mini"
+    temperature: 0.3
+    max_tokens: 2000
+    
+  ORACLE:
+    data_validation: strict
+    real_time_sync: true
+    db_backup: true
+    
+  LATTICE:
+    ocr_threshold: 0.85
+    text_processing: advanced
+    multilingual: true
+    
+  RHYTHM:
+    kpi_refresh_interval: 3600  # seconds
+    alert_threshold: 0.10
+    schedule_enabled: true
+    
+  COST_GUARD:
+    cost_validation: mandatory
+    approval_required: true
+    budget_alert: true
+    
+  ZERO:
+    fallback_mode: true
+    manual_override: required
+    error_logging: verbose
+
+# WhatsApp 설정
+whatsapp:
+  web_url: "https://web.whatsapp.com/"
+  chat_title: "MR.CHA 전용"  # 추출할 대화방 이름
+  auth_file: "auth.json"
+  extraction_hours: 24  # 추출할 시간 범위
+  
+# RPA 설정
+rpa:
+  browser: "chromium"
+  headless: false  # 개발 시 false, 운영 시 true
+  timeout: 30000  # ms
+  retry_attempts: 3
+  scroll_delay: 1000  # ms
+  
+# 스케줄러 설정
+scheduler:
+  extraction_time: "18:00"  # 매일 추출 시간
+  timezone: "Europe/London"
+  enabled: true
+  
+# 데이터베이스 설정
+database:
+  type: "json"  # json, sqlite, postgresql
+  file: "summaries.json"
+  backup_enabled: true
+  backup_interval: 24  # hours
+  
+# AI 요약 설정
+ai_summary:
+  provider: "openai"
+  model: "gpt-4o-mini"
+  max_summary_length: 500
+  language: "ko-en"  # 한국어-영어 혼용
+  
+# 키워드 분류 설정
+keyword_classification:
+  urgent_patterns:
+    - "긴급"
+    - "urgent"
+    - "immediate"
+    - "critical"
+    - "ASAP"
+    - "응급"
+    - "즉시"
+    
+  important_patterns:
+    - "중요"
+    - "important"
+    - "approval"
+    - "승인"
+    - "확인"
+    - "decision"
+    - "결정"
+    
+# KPI 설정
+kpi_thresholds:
+  urgent_message_threshold: 5
+  participant_threshold: 10
+  response_time_threshold: 24  # hours
+  confidence_threshold: 0.90
+  
+# 알림 설정
+notifications:
+  email_enabled: false
+  slack_enabled: false
+  teams_enabled: false
+  
+# 로깅 설정
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "logs/whatsapp_summary.log"
+  max_size: "10MB"
+  backup_count: 5
+  
+# 보안 설정
+security:
+  pii_protection: true
+  nda_compliance: true
+  data_encryption: false  # 개발환경에서는 false
+  
+# 통합 설정
+integration:
+  tools:
+    - web_search
+    - file_system_access
+    - streamlit_ui
+    - playwright_rpa
+    
+# 확장 기능 설정
+extensions:
+  slash_commands: true
+  auto_visualization: true
+  kpi_dashboard: true
+  export_formats: ["json", "csv", "xlsx"] 
