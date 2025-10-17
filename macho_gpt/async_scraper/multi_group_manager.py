@@ -5,10 +5,11 @@
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import signal
 import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from .group_config import GroupConfig, MultiGroupConfig
 from .async_scraper import AsyncGroupScraper
@@ -33,6 +34,11 @@ class MultiGroupManager:
         group_configs: List[GroupConfig],
         max_parallel_groups: int = 5,
         ai_integration: Optional[Dict[str, Any]] = None,
+        *,
+        chrome_data_root: str = "chrome-data",
+        headless: bool = True,
+        timeout: int = 30000,
+        enhancements: Optional[Dict[str, Any]] = None,
     ):
         """
         Args:
@@ -43,6 +49,10 @@ class MultiGroupManager:
         self.group_configs = group_configs
         self.max_parallel_groups = min(max_parallel_groups, len(group_configs))
         self.ai_integration = ai_integration or {}
+        self.chrome_data_root = chrome_data_root
+        self.headless = headless
+        self.timeout = timeout
+        self.enhancements = enhancements or {}
 
         # 스크래퍼 인스턴스들
         self.scrapers: Dict[str, AsyncGroupScraper] = {}
@@ -74,10 +84,27 @@ class MultiGroupManager:
             AsyncGroupScraper: 스크래퍼 인스턴스
         """
         scraper = AsyncGroupScraper(
-            group_config=group_config, ai_integration=self.ai_integration
+            group_config=group_config,
+            chrome_data_dir=self._build_chrome_storage_dir(group_config),
+            headless=self.headless,
+            timeout=self.timeout,
+            ai_integration=self.ai_integration,
+            enhancements=self.enhancements,
         )
 
         return scraper
+
+    def _build_chrome_storage_dir(self, group_config: GroupConfig) -> str:
+        """그룹별 Chrome 프로필 디렉토리 생성/Return a unique profile directory per group."""
+
+        safe_name = "".join(
+            char if char.isalnum() else "_" for char in group_config.name
+        ).strip("_")
+
+        if not safe_name:
+            safe_name = "group"
+
+        return str(Path(self.chrome_data_root) / safe_name)
 
     async def _scrape_group(self, group_config: GroupConfig) -> Dict[str, Any]:
         """

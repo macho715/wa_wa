@@ -151,6 +151,10 @@ async def main():
             group_configs=config.whatsapp_groups,
             max_parallel_groups=config.scraper_settings.max_parallel_groups,
             ai_integration=config.ai_integration.dict(),
+            chrome_data_root=config.scraper_settings.chrome_data_dir,
+            headless=config.scraper_settings.headless,
+            timeout=config.scraper_settings.timeout,
+            enhancements=getattr(config, "enhancements", {}),
         )
 
         # 실행

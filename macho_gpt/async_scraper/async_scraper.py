@@ -17,6 +17,12 @@ from playwright.async_api import async_playwright
 from .enhancements import LoadingOptimizer, StealthFeatures
 from .group_config import GroupConfig
 
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+CHAT_LIST_SELECTOR = "[data-testid='chat-list-search']"
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,6 +61,8 @@ class AsyncGroupScraper:
         self.timeout = timeout
         self.ai_integration = ai_integration or {}
         self.enhancements = enhancements or {}
+        self.storage_state_path = Path(self.chrome_data_dir) / "storage_state.json"
+        self._loaded_existing_session = False
 
         # Enhancement 모듈 초기화
         self.loading_optimizer = LoadingOptimizer(
@@ -79,16 +87,14 @@ class AsyncGroupScraper:
         logger.info(f"AsyncGroupScraper initialized for group: {group_config.name}")
 
     async def initialize(self) -> None:
-        """브라우저 및 컨텍스트 초기화"""
+        """브라우저 및 컨텍스트 초기화/Initialize browser context."""
         try:
             self.playwright = await async_playwright().start()
 
             storage_dir = Path(self.chrome_data_dir)
             storage_dir.mkdir(parents=True, exist_ok=True)
 
-            # Chrome 브라우저 시작 (영구 세션 유지)
-            self.context = await self.playwright.chromium.launch_persistent_context(
-                str(storage_dir),
+            launch_args = dict(
                 headless=self.headless,
                 args=[
                     "--no-sandbox",
@@ -97,17 +103,21 @@ class AsyncGroupScraper:
                     "--disable-web-security",
                     "--disable-features=VizDisplayCompositor",
                 ],
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                viewport={"width": 1920, "height": 1080},
             )
 
-            # launch_persistent_context는 BrowserContext를 반환하며 browser 속성을 노출함
-            self.browser = self.context.browser
+            self.browser = await self.playwright.chromium.launch(**launch_args)
 
-            if self.context.pages:
-                self.page = self.context.pages[0]
-            else:
-                self.page = await self.context.new_page()
+            context_kwargs: Dict[str, Any] = {
+                "viewport": {"width": 1920, "height": 1080},
+                "user_agent": USER_AGENT,
+            }
+
+            if self.storage_state_path.exists():
+                context_kwargs["storage_state"] = str(self.storage_state_path)
+                self._loaded_existing_session = True
+
+            self.context = await self.browser.new_context(**context_kwargs)
+            self.page = await self.context.new_page()
 
             self.context.set_default_timeout(self.timeout)
             self.context.set_default_navigation_timeout(self.timeout)
@@ -129,9 +139,39 @@ class AsyncGroupScraper:
             )
             raise
 
+    async def _persist_session_state(self) -> None:
+        """세션 상태 저장/Persist session state for future runs."""
+
+        if not self.context:
+            return
+
+        try:
+            self.storage_state_path.parent.mkdir(parents=True, exist_ok=True)
+            await self.context.storage_state(path=str(self.storage_state_path))
+            logger.info(
+                f"Session state saved for group: {self.group_config.name}"
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Failed to persist session state for {self.group_config.name}: {exc}"
+            )
+
+    async def _is_logged_in(self) -> bool:
+        """로그인 상태 확인/Check whether WhatsApp session is authenticated."""
+
+        if not self.page:
+            return False
+
+        try:
+            await self.page.wait_for_selector(
+                CHAT_LIST_SELECTOR, state="visible", timeout=5000
+            )
+            return True
+        except PlaywrightTimeoutError:
+            return False
+
     async def wait_for_whatsapp_login(self, timeout: int = 60) -> bool:
-        """
-        WhatsApp 로그인 대기
+        """WhatsApp 로그인 대기/Wait for WhatsApp login.
 
         Args:
             timeout: 대기 시간 (초)
@@ -139,6 +179,14 @@ class AsyncGroupScraper:
         Returns:
             bool: 로그인 성공 여부
         """
+        if await self._is_logged_in():
+            logger.info(
+                f"WhatsApp session restored for group: {self.group_config.name}"
+            )
+            if self._loaded_existing_session:
+                await self._persist_session_state()
+            return True
+
         try:
             # CAPTCHA 확인 및 해결
             await self.stealth_features.solve_captcha_interactive(self.page)
@@ -152,6 +200,7 @@ class AsyncGroupScraper:
                 logger.info(
                     f"WhatsApp login successful for group: {self.group_config.name}"
                 )
+                await self._persist_session_state()
                 return True
             else:
                 logger.warning(f"WhatsApp login failed for {self.group_config.name}")
@@ -540,8 +589,10 @@ class AsyncGroupScraper:
             await self.close()
 
     async def close(self) -> None:
-        """리소스 정리"""
+        """리소스 정리/Clean up resources."""
         try:
+            if self.context:
+                await self._persist_session_state()
             if self.page:
                 await self.page.close()
             if self.context:
