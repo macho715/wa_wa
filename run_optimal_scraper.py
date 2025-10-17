@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import sys
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -204,7 +205,7 @@ async def _run_playwright_backend(
     manager = MultiGroupManager(
         group_configs=groups,
         max_parallel_groups=config.scraper_settings.max_parallel_groups,
-        ai_integration=config.ai_integration.__dict__,
+        ai_integration=asdict(config.ai_integration),
     )
 
     logger.info("Playwright backend starting for %d groups", len(groups))
