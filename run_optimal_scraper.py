@@ -206,6 +206,10 @@ async def _run_playwright_backend(
         group_configs=groups,
         max_parallel_groups=config.scraper_settings.max_parallel_groups,
         ai_integration=asdict(config.ai_integration),
+        chrome_data_root=config.scraper_settings.chrome_data_dir,
+        headless=config.scraper_settings.headless,
+        timeout=config.scraper_settings.timeout,
+        enhancements=getattr(config, "enhancements", {}),
     )
 
     logger.info("Playwright backend starting for %d groups", len(groups))
