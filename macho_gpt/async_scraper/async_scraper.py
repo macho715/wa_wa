@@ -4,15 +4,18 @@ Playwright 기반 비동기 스크래핑 및 MACHO-GPT AI 통합
 """
 
 import asyncio
-import logging
-from pathlib import Path
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import json
+import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
-from .group_config import GroupConfig
+from playwright.async_api import Browser, BrowserContext, Locator, Page
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import async_playwright
+
 from .enhancements import LoadingOptimizer, StealthFeatures
+from .group_config import GroupConfig
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +83,12 @@ class AsyncGroupScraper:
         try:
             self.playwright = await async_playwright().start()
 
-            # Chrome 브라우저 시작
-            self.browser = await self.playwright.chromium.launch(
+            storage_dir = Path(self.chrome_data_dir)
+            storage_dir.mkdir(parents=True, exist_ok=True)
+
+            # Chrome 브라우저 시작 (영구 세션 유지)
+            self.context = await self.playwright.chromium.launch_persistent_context(
+                str(storage_dir),
                 headless=self.headless,
                 args=[
                     "--no-sandbox",
@@ -90,22 +97,29 @@ class AsyncGroupScraper:
                     "--disable-web-security",
                     "--disable-features=VizDisplayCompositor",
                 ],
-            )
-
-            # 브라우저 컨텍스트 생성
-            self.context = await self.browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 viewport={"width": 1920, "height": 1080},
             )
 
-            # 새 페이지 생성
-            self.page = await self.context.new_page()
+            # launch_persistent_context는 BrowserContext를 반환하며 browser 속성을 노출함
+            self.browser = self.context.browser
+
+            if self.context.pages:
+                self.page = self.context.pages[0]
+            else:
+                self.page = await self.context.new_page()
+
+            self.context.set_default_timeout(self.timeout)
+            self.context.set_default_navigation_timeout(self.timeout)
 
             # 스텔스 설정 적용
             await self.stealth_features.apply_stealth_settings(self.context)
 
             # WhatsApp Web으로 이동
-            await self.page.goto("https://web.whatsapp.com", wait_until="networkidle")
+            await self.page.goto(
+                "https://web.whatsapp.com", wait_until="domcontentloaded"
+            )
+            await self.page.wait_for_load_state("networkidle")
 
             logger.info(f"Browser initialized for group: {self.group_config.name}")
 
@@ -147,6 +161,106 @@ class AsyncGroupScraper:
             logger.warning(f"WhatsApp login timeout for {self.group_config.name}: {e}")
             return False
 
+    async def _locate_search_box(self) -> Locator:
+        """그룹 검색 입력창 탐색/Locate the group search box."""
+
+        if not self.page:
+            raise RuntimeError("Playwright page is not initialized")
+
+        toggle_selectors = [
+            'button[data-testid="chat-list-search"]',
+            'button[aria-label*="Search"]',
+            'button[title*="Search"]',
+        ]
+
+        for selector in toggle_selectors:
+            toggle = self.page.locator(selector)
+            try:
+                if await toggle.count() > 0 and await toggle.first.is_visible():
+                    await toggle.first.click()
+                    await self.page.wait_for_timeout(200)
+                    break
+            except PlaywrightTimeoutError:
+                continue
+            except Exception:
+                continue
+
+        search_selectors = [
+            '[data-testid="chat-list-search"]',
+            'input[aria-label="Search input textbox"]',
+            'input[type="text"][role="combobox"]',
+            'div[contenteditable="true"][data-tab="3"]',
+            'div[role="textbox"][contenteditable="true"][data-tab="3"]',
+            'div[role="textbox"][data-testid="chat-list-search"]',
+        ]
+
+        for selector in search_selectors:
+            locator = self.page.locator(selector)
+            try:
+                await locator.first.wait_for(state="visible", timeout=5000)
+                return locator.first
+            except PlaywrightTimeoutError:
+                continue
+
+        await self.page.keyboard.press("Control+K")
+        await self.page.wait_for_timeout(200)
+        fallback = self.page.locator('div[role="textbox"][contenteditable="true"]')
+        await fallback.first.wait_for(state="visible", timeout=5000)
+        return fallback.first
+
+    async def _fill_search_box(self, locator: Locator, value: str) -> None:
+        """검색창에 텍스트 입력/Fill the located search box with text."""
+
+        try:
+            await locator.click()
+        except PlaywrightTimeoutError:
+            pass
+
+        try:
+            await locator.fill(value)
+            return
+        except Exception:
+            # 일부 contenteditable 요소는 fill이 지원되지 않음
+            pass
+
+        try:
+            await locator.press("Control+A")
+            await locator.press("Delete")
+        except Exception:  # noqa: BLE001 - broad fallback for varying DOM elements
+            await locator.evaluate(
+                "el => { if (el.value !== undefined) { el.value = ''; } else { el.textContent = ''; } }"
+            )
+
+        await locator.type(value, delay=50)
+
+    async def _wait_for_group_entry(self, group_name: str) -> Locator:
+        """그룹 항목 탐색/Wait for the group entry in the search results."""
+
+        if not self.page:
+            raise RuntimeError("Playwright page is not initialized")
+
+        group_selectors = [
+            f'[data-testid="cell-frame-title"] span[title="{group_name}"]',
+            f'span[title="{group_name}"]',
+            f'div[role="gridcell"] [title="{group_name}"]',
+        ]
+
+        last_error: Optional[Exception] = None
+        for selector in group_selectors:
+            locator = self.page.locator(selector)
+            try:
+                await locator.first.wait_for(state="visible", timeout=10000)
+                return locator.first
+            except (
+                Exception
+            ) as error:  # noqa: BLE001 - Playwright raises generic errors
+                last_error = error
+                continue
+
+        raise RuntimeError(
+            f"Failed to locate group entry: {group_name}"
+        ) from last_error
+
     async def find_and_click_group(self) -> bool:
         """
         지정된 그룹 찾기 및 클릭
@@ -155,21 +269,20 @@ class AsyncGroupScraper:
             bool: 그룹 찾기 성공 여부
         """
         try:
-            # 그룹 검색
-            search_box = await self.page.wait_for_selector(
-                '[data-testid="chat-list-search"]'
-            )
-            await search_box.click()
-            await search_box.fill(self.group_config.name)
+            if not self.page:
+                raise RuntimeError("Playwright page is not initialized")
 
-            # 검색 결과에서 그룹 클릭
-            group_selector = f'[title="{self.group_config.name}"]'
-            await self.page.wait_for_selector(group_selector, timeout=10000)
-            await self.page.click(group_selector)
+            search_box = await self._locate_search_box()
+            await self._fill_search_box(search_box, self.group_config.name)
 
-            # 그룹 채팅이 로드될 때까지 대기
-            await self.page.wait_for_selector(
-                '[data-testid="conversation-panel-messages"]', timeout=10000
+            group_entry = await self._wait_for_group_entry(self.group_config.name)
+            await group_entry.click()
+
+            await self.loading_optimizer.wait_for_element_with_retry(
+                self.page,
+                '[data-testid="conversation-panel-messages"]',
+                max_retries=5,
+                timeout=5000,
             )
 
             logger.info(f"Successfully opened group: {self.group_config.name}")

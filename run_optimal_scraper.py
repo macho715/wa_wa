@@ -15,21 +15,27 @@ import asyncio
 import json
 import logging
 import sys
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 # 프로젝트 루트를 Python 경로에 추가
 sys.path.insert(0, str(Path(__file__).parent))
 
-from macho_gpt.async_scraper.group_config import (  # noqa: E402
-    GroupConfig,
+from macho_gpt.async_scraper.group_config import (
+    GroupConfig,  # noqa: E402
     MultiGroupConfig,
-    WebJSSettings,
 )
 from macho_gpt.async_scraper.multi_group_manager import MultiGroupManager  # noqa: E402
-from setup.whatsapp_webjs.whatsapp_webjs_bridge import (  # noqa: E402
-    WhatsAppWebJSBridge,
-)
+from setup.whatsapp_webjs.whatsapp_webjs_bridge import WhatsAppWebJSBridge  # noqa: E402
+
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError, OSError):
+    pass
 
 # 로깅 설정
 logging.basicConfig(
@@ -48,8 +54,8 @@ BACKEND_WEBJS = "webjs"
 BACKEND_AUTO = "auto"
 
 
-def print_banner():
-    """배너 출력"""
+def print_banner() -> None:
+    """배너 출력/Print CLI banner."""
     banner = """
 ================================================================================
 
@@ -64,8 +70,8 @@ def print_banner():
     print(banner)
 
 
-def print_usage():
-    """사용법 출력"""
+def print_usage() -> str:
+    """사용법 출력/Print usage text."""
     usage = """
 MACHO-GPT v3.5-optimal Multi-Group WhatsApp Scraper
 
@@ -88,8 +94,8 @@ Enhancement 활성화:
     return usage
 
 
-async def run_development_tool(tool_name: str):
-    """개발 도구 실행"""
+async def run_development_tool(tool_name: str) -> None:
+    """개발 도구 실행/Run a development tool."""
     try:
         if tool_name == "dom-analyzer":
             from tools.dom_analyzer import main
@@ -110,8 +116,8 @@ async def run_development_tool(tool_name: str):
         logger.error(f"개발 도구 실행 실패: {e}")
 
 
-async def run_setup_tool(setup_name: str):
-    """설정 도구 실행"""
+async def run_setup_tool(setup_name: str) -> None:
+    """설정 도구 실행/Run a setup helper tool."""
     try:
         if setup_name == "manual-auth":
             from setup.manual_auth import main
@@ -128,6 +134,7 @@ async def run_setup_tool(setup_name: str):
         logger.error(f"설정 도구 실행 실패: {e}")
 
 
+<<<<<<< HEAD
 def _log_backend_switch(from_backend: str, to_backend: str, reason: str) -> None:
     """백엔드 전환을 로깅합니다. (KR)
     Log backend switch details. (EN)
@@ -165,11 +172,110 @@ async def run_webjs_backend(
     Execute the whatsapp-web.js backend. (EN)
     """
 
+=======
+def _select_groups(
+    config: MultiGroupConfig, names: Optional[Sequence[str]]
+) -> List[GroupConfig]:
+    """그룹 선택/Select groups based on CLI filters."""
+
+    if not names:
+        return list(config.whatsapp_groups)
+
+    selected = [group for group in config.whatsapp_groups if group.name in names]
+    if not selected:
+        available = ", ".join(group.name for group in config.whatsapp_groups)
+        raise ValueError(
+            f"선택된 그룹이 없습니다. 사용 가능한 그룹: {available or '없음'}"
+        )
+    return selected
+
+
+def _resolve_backend_sequence(selected: str, fallback: bool) -> List[str]:
+    """백엔드 실행 순서 계산/Resolve backend execution order."""
+
+    if selected == "auto":
+        return ["playwright", "webjs"] if fallback else ["playwright"]
+
+    if selected == "playwright":
+        return ["playwright", "webjs"] if fallback else ["playwright"]
+
+    return ["webjs"]
+
+
+def _persist_webjs_group(
+    group_payload: Dict[str, Any], group_config: GroupConfig
+) -> None:
+    """webjs 결과 저장/Persist whatsapp-web.js group payload."""
+
+    target_path = Path(group_config.save_file)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    payload = {
+        "status": "SUCCESS",
+        "backend": "webjs",
+        "saved_at": datetime.utcnow().isoformat(),
+        "group": group_payload,
+    }
+
+    with open(target_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+
+
+async def _run_playwright_backend(
+    config: MultiGroupConfig,
+    groups: List[GroupConfig],
+    *,
+    enhance_loading: bool,
+    enhance_stealth: bool,
+    max_messages: int,
+    timeout: int,
+    headless: bool,
+) -> List[Dict[str, Any]]:
+    """Playwright 백엔드 실행/Run the Playwright backend."""
+
+    config.scraper_settings.headless = headless
+    config.scraper_settings.timeout = timeout
+
+    if enhance_loading:
+        logger.info("Playwright loading enhancement enabled")
+    if enhance_stealth:
+        logger.info("Playwright stealth enhancement enabled")
+
+    for group in groups:
+        group.max_messages = min(group.max_messages, max_messages)
+
+    manager = MultiGroupManager(
+        group_configs=groups,
+        max_parallel_groups=config.scraper_settings.max_parallel_groups,
+        ai_integration=config.ai_integration.__dict__,
+    )
+
+    logger.info("Playwright backend starting for %d groups", len(groups))
+    results = await manager.run_all_groups()
+    logger.info("Playwright backend completed")
+    return results
+
+
+async def _run_webjs_backend(
+    config: MultiGroupConfig,
+    groups: List[GroupConfig],
+    *,
+    max_messages: int,
+    include_media: bool,
+) -> List[Dict[str, Any]]:
+    """whatsapp-web.js 백엔드 실행/Run the whatsapp-web.js backend."""
+
+    if not groups:
+        raise ValueError("whatsapp-web.js 백엔드에 사용할 그룹이 없습니다")
+
+    settings = config.scraper_settings.webjs_settings
+>>>>>>> origin/codex/integrate-playwright-with-whatsapp-web.js
     bridge = WhatsAppWebJSBridge(
         script_dir=settings.script_dir,
         timeout=settings.timeout,
         auto_install_deps=settings.auto_install_deps,
     )
+<<<<<<< HEAD
     results: List[Dict[str, Any]] = []
     for group_config in group_configs:
         group_config.max_messages = max_messages
@@ -203,6 +309,82 @@ async def run_webjs_backend(
             }
         )
     return results
+=======
+
+    include_media_flag = include_media or settings.include_media
+    limit_map = {group.name: min(group.max_messages, max_messages) for group in groups}
+    latest_results: Dict[str, Dict[str, Any]] = {}
+    loop = asyncio.get_running_loop()
+    last_scrape = {
+        group.name: loop.time() - max(group.scrape_interval, 1) for group in groups
+    }
+
+    logger.info("whatsapp-web.js backend polling started for %d groups", len(groups))
+
+    try:
+        while True:
+            now = loop.time()
+            due_groups = [
+                group
+                for group in groups
+                if now - last_scrape[group.name] >= group.scrape_interval
+            ]
+
+            if not due_groups:
+                await asyncio.sleep(1)
+                continue
+
+            group_names = [group.name for group in due_groups]
+            group_limits = {name: limit_map[name] for name in group_names}
+            global_limit = max(group_limits.values())
+
+            result = await bridge.scrape_groups(
+                group_names,
+                limit=global_limit,
+                include_media=include_media_flag,
+                group_limits=group_limits,
+            )
+
+            status = result.get("status", "UNKNOWN")
+            if status != "SUCCESS":
+                logger.warning("whatsapp-web.js returned status %s", status)
+
+            for error in result.get("errors", []):
+                logger.warning(
+                    "webjs error for group %s: %s",
+                    error.get("group"),
+                    error.get("reason"),
+                )
+
+            group_lookup = {group.name: group for group in groups}
+            scrape_completed = loop.time()
+
+            for group_payload in result.get("groups", []):
+                name = group_payload.get("name")
+                group_config = group_lookup.get(name)
+                if not group_config:
+                    continue
+
+                _persist_webjs_group(group_payload, group_config)
+                latest_results[name] = {
+                    "group_name": name,
+                    "success": True,
+                    "messages_scraped": len(group_payload.get("messages", [])),
+                    "backend": "webjs",
+                    "saved_at": datetime.utcnow().isoformat(),
+                }
+                last_scrape[name] = scrape_completed
+
+            await asyncio.sleep(0)
+    except asyncio.CancelledError:
+        logger.info("whatsapp-web.js backend cancelled")
+        raise
+    except Exception as exc:  # pragma: no cover - safety net for runtime errors
+        logger.exception("whatsapp-web.js backend failed: %s", exc)
+        raise
+
+    return list(latest_results.values())
+>>>>>>> origin/codex/integrate-playwright-with-whatsapp-web.js
 
 
 async def run_optimal_scraper(
@@ -210,7 +392,11 @@ async def run_optimal_scraper(
     enhance_loading: bool = False,
     enhance_stealth: bool = False,
     dev_mode: bool = False,
+<<<<<<< HEAD
     groups: Optional[List[str]] = None,
+=======
+    groups: Optional[Sequence[str]] = None,
+>>>>>>> origin/codex/integrate-playwright-with-whatsapp-web.js
     max_messages: int = 50,
     timeout: int = 30000,
     headless: bool = True,
@@ -218,6 +404,7 @@ async def run_optimal_scraper(
     webjs_fallback: Optional[bool] = None,
     include_media: bool = False,
 ) -> List[Dict[str, Any]]:
+<<<<<<< HEAD
     """최적화된 스크래퍼를 실행합니다. (KR)
     Run the optimal multi-group scraper. (EN)
     """
@@ -225,20 +412,22 @@ async def run_optimal_scraper(
     try:
         print_banner()
         config = MultiGroupConfig.load_from_yaml(config_file)
+=======
+    """최적화된 스크래퍼 실행/Run the optimal scraper."""
 
-        # Enhancement 설정 적용
-        if enhance_loading:
-            logger.info("로딩 안정성 개선 활성화")
-            # 로딩 최적화 설정 적용
+    print_banner()
+>>>>>>> origin/codex/integrate-playwright-with-whatsapp-web.js
 
-        if enhance_stealth:
-            logger.info("스텔스 기능 활성화")
-            # 스텔스 기능 설정 적용
+    config = MultiGroupConfig.load_from_yaml(config_file)
+    selected_groups = _select_groups(config, groups)
 
-        if dev_mode:
-            logger.info("개발 모드 활성화")
-            # 디버그 모드 설정 적용
+    if enhance_loading:
+        logger.info("로딩 안정성 개선 활성화")
 
+    if enhance_stealth:
+        logger.info("스텔스 기능 활성화")
+
+<<<<<<< HEAD
         selected_groups = config.whatsapp_groups
         if groups:
             selected_groups = [
@@ -337,6 +526,50 @@ async def run_optimal_scraper(
     except Exception as error:
         logger.error(f"스크래핑 실행 실패: {error}")
         raise
+=======
+    if dev_mode:
+        logger.info("개발 모드 활성화")
+
+    chosen_backend = backend or config.scraper_settings.backend
+    fallback_enabled = (
+        webjs_fallback
+        if webjs_fallback is not None
+        else config.scraper_settings.webjs_fallback
+    )
+    backend_sequence = _resolve_backend_sequence(chosen_backend, fallback_enabled)
+    logger.info("Backend sequence: %s", " -> ".join(backend_sequence))
+
+    last_error: Optional[Exception] = None
+    for backend_name in backend_sequence:
+        try:
+            if backend_name == "playwright":
+                return await _run_playwright_backend(
+                    config,
+                    selected_groups,
+                    enhance_loading=enhance_loading,
+                    enhance_stealth=enhance_stealth,
+                    max_messages=max_messages,
+                    timeout=timeout,
+                    headless=headless,
+                )
+            if backend_name == "webjs":
+                return await _run_webjs_backend(
+                    config,
+                    selected_groups,
+                    max_messages=max_messages,
+                    include_media=include_media,
+                )
+            raise ValueError(f"Unsupported backend requested: {backend_name}")
+        except Exception as exc:
+            logger.exception("Backend %s failed: %s", backend_name, exc)
+            last_error = exc
+            continue
+
+    if last_error:
+        raise last_error
+
+    raise RuntimeError("No backend executed")
+>>>>>>> origin/codex/integrate-playwright-with-whatsapp-web.js
 
 
 def main():
@@ -385,7 +618,11 @@ def main():
     # 백엔드 옵션 (whatsapp-web.js 통합)
     parser.add_argument(
         "--backend",
+<<<<<<< HEAD
         choices=[BACKEND_PLAYWRIGHT, BACKEND_WEBJS, BACKEND_AUTO],
+=======
+        choices=["playwright", "webjs", "auto"],
+>>>>>>> origin/codex/integrate-playwright-with-whatsapp-web.js
         default=None,
         help="스크래핑 백엔드 선택 (기본: 설정 파일)",
     )
@@ -393,7 +630,13 @@ def main():
     parser.add_argument(
         "--webjs-fallback",
         dest="webjs_fallback",
+<<<<<<< HEAD
         action="store_true",
+=======
+        action="store_const",
+        const=True,
+        default=None,
+>>>>>>> origin/codex/integrate-playwright-with-whatsapp-web.js
         help="Playwright 실패 시 whatsapp-web.js로 자동 전환",
     )
     parser.add_argument(
@@ -404,10 +647,25 @@ def main():
     )
     parser.set_defaults(webjs_fallback=None)
 
+    parser.add_argument(
+        "--no-webjs-fallback",
+        dest="webjs_fallback",
+        action="store_const",
+        const=False,
+        help="Playwright 실패 시에도 whatsapp-web.js로 전환하지 않음",
+    )
+
     # 스크래핑 옵션
     parser.add_argument("--groups", nargs="+", help="스크래핑할 그룹 이름들")
 
     parser.add_argument("--max-messages", type=int, default=50, help="최대 메시지 수")
+
+    parser.add_argument(
+        "--webjs-include-media",
+        dest="include_media",
+        action="store_true",
+        help="whatsapp-web.js에서 미디어(base64) 포함",
+    )
 
     parser.add_argument("--timeout", type=int, default=30000, help="타임아웃 (밀리초)")
 

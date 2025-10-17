@@ -18,6 +18,7 @@ npm --prefix setup/whatsapp_webjs ci
 node setup/whatsapp_webjs/whatsapp_webjs_scraper.js --group "HVDC 물류팀" --limit 100
 node setup/whatsapp_webjs/whatsapp_webjs_scraper.js --group "HVDC 물류팀" --include-media
 ```
+
 출력은 JSON이며, stdout에는 데이터가, stderr에는 로그가 출력됩니다.
 
 ### 2.2 Python 브릿지 사용
@@ -35,14 +36,7 @@ asyncio.run(main())
 
 ### 2.3 통합 실행
 ```bash
-# whatsapp-web.js 백엔드로 실행
-python run_optimal_scraper.py --backend webjs
-
-# 자동 전환 모드 (Playwright 실패 시 whatsapp-web.js로 전환)
-python run_optimal_scraper.py --backend auto --webjs-fallback
-
-# 특정 그룹만 스크래핑
- python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀" "MR.CHA 전용"
+python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀" "MR.CHA 전용"
 python run_optimal_scraper.py --backend auto --webjs-fallback --webjs-include-media
 ```
 

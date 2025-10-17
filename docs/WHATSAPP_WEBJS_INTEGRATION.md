@@ -4,16 +4,16 @@ MACHO-GPT v3.5-optimal은 Playwright와 whatsapp-web.js를 동시에 지원하�
 
 ## 1. 설치/Installation
 
-1. **Node.js & npm 확인**
+1. **Node.js & npm 확인**  
    ```bash
    node --version    # >= 14.x
    npm --version
    ```
-2. **의존성 설치**
+2. **의존성 설치**  
    ```bash
    npm --prefix setup/whatsapp_webjs ci
    ```
-3. **최초 QR 인증**
+3. **최초 QR 인증**  
    ```bash
    node setup/whatsapp_webjs/whatsapp_webjs_scraper.js --group "그룹명"
    ```
@@ -24,16 +24,17 @@ MACHO-GPT v3.5-optimal은 Playwright와 whatsapp-web.js를 동시에 지원하�
 ### 2.1 CLI 백엔드 선택
 ```bash
 # 설정 파일(default) 기준 실행
- python run_optimal_scraper.py
+python run_optimal_scraper.py
 
 # Playwright 고정
- python run_optimal_scraper.py --backend playwright
+python run_optimal_scraper.py --backend playwright
+
 # whatsapp-web.js 고정 (준실시간 폴링)
 python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀" "MR.CHA 전용"
 
 # 자동 전환 (Playwright 우선, 실패 시 webjs)
- python run_optimal_scraper.py --backend auto --webjs-fallback
- ```
+python run_optimal_scraper.py --backend auto --webjs-fallback
+```
 
 ### 2.2 whatsapp-web.js 세부 옵션
 ```bash
@@ -43,6 +44,7 @@ python run_optimal_scraper.py --backend webjs --webjs-include-media
 # 단일 실행 테스트
 node setup/whatsapp_webjs/whatsapp_webjs_scraper.js --group "HVDC 물류팀" --limit 100 --include-media
 ```
+
 스크립트 출력은 JSON이며, Python 브릿지가 자동으로 파싱하여 `data/` 이하 그룹별 파일에 저장합니다.
 
 ## 3. 구성/Configuration
@@ -73,7 +75,7 @@ scraper_settings:
 | `Node.js executable not found` | Node 미설치 또는 PATH 미등록 | Node 14+ 설치 후 터미널 재시작 |
 | `Initialization timeout reached` | QR 인증 미완료, 네트워크 지연 | QR 재스캔, 또는 `webjs_settings.timeout` 증가 |
 | `GROUP_NOT_FOUND` 에러 | 그룹명이 정확하지 않음 | WhatsApp 내 그룹 명칭을 그대로 입력 |
-| JSON 파싱 실패 | 오래된 npm 의존성 | `npm --prefix setup/whatsapp_webjs ci` 재실행
+| JSON 파싱 실패 | 오래된 npm 의존성 | `npm --prefix setup/whatsapp_webjs ci` 재실행 |
 
 ## 6. 빠른 점검/Quick Diagnostics
 

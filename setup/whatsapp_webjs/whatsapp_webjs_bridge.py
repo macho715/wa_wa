@@ -262,7 +262,6 @@ async def check_webjs_environment() -> Dict[str, Any]:
     return status.__dict__
 
 
-# CLI 테스트용
 if __name__ == "__main__":
     import argparse
 
