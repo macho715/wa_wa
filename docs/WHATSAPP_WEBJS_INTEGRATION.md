@@ -58,6 +58,9 @@ python run_optimal_scraper.py --backend webjs
 
 # 특정 그룹만 스크래핑
 python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀"
+
+# 쉼표로 복수 그룹 지정
+python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀" "MR.CHA 전용"
 ```
 
 #### 3. 자동 전환 (Auto)
@@ -65,8 +68,8 @@ python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀"
 # Playwright 우선, 실패 시 whatsapp-web.js로 전환
 python run_optimal_scraper.py --backend auto
 
-# 자동 전환 활성화
-python run_optimal_scraper.py --backend auto --webjs-fallback
+# 전환 비활성화 옵션
+python run_optimal_scraper.py --backend auto --no-webjs-fallback
 ```
 
 ### 설정 파일에서 백엔드 지정
@@ -146,7 +149,7 @@ npm --version
 
 ```bash
 cd setup/whatsapp_webjs
-npm install
+npm ci
 ```
 
 ### 3. 환경 확인

@@ -3,21 +3,21 @@ TDD 테스트: 멀티 그룹 WhatsApp 스크래퍼
 Kent Beck TDD 원칙 준수: Red → Green → Refactor
 """
 
-import pytest
-import asyncio
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
 import tempfile
-import yaml
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from macho_gpt.async_scraper.async_scraper import AsyncGroupScraper
 
 # 테스트 대상 모듈 import
 from macho_gpt.async_scraper.group_config import (
-    GroupConfig,
-    ScraperSettings,
     AIIntegrationSettings,
+    GroupConfig,
     MultiGroupConfig,
+    ScraperSettings,
 )
-from macho_gpt.async_scraper.async_scraper import AsyncGroupScraper
 from macho_gpt.async_scraper.multi_group_manager import MultiGroupManager
 
 
@@ -31,6 +31,7 @@ class TestGroupConfig:
             save_file="test.json",
             scrape_interval=60,
             priority="HIGH",
+            max_messages=50,
         )
 
         assert config.name == "Test Group"
@@ -69,6 +70,8 @@ class TestScraperSettings:
             headless=True,
             timeout=30000,
             max_parallel_groups=5,
+            backend="playwright",
+            webjs_fallback=True,
         )
 
         assert settings.chrome_data_dir == "chrome-data"
@@ -190,8 +193,10 @@ ai_integration:
 
         # 중복된 그룹 이름 추가
         config.whatsapp_groups = [
-            GroupConfig(name="Test Group", save_file="test1.json"),
-            GroupConfig(name="Test Group", save_file="test2.json"),  # 중복 이름
+            GroupConfig(name="Test Group", save_file="test1.json", max_messages=10),
+            GroupConfig(
+                name="Test Group", save_file="test2.json", max_messages=10
+            ),  # 중복 이름
         ]
 
         with pytest.raises(ValueError, match="중복된 그룹 이름이 있습니다"):
@@ -203,8 +208,10 @@ ai_integration:
 
         # 중복된 save_file 추가
         config.whatsapp_groups = [
-            GroupConfig(name="Group 1", save_file="test.json"),
-            GroupConfig(name="Group 2", save_file="test.json"),  # 중복 파일
+            GroupConfig(name="Group 1", save_file="test.json", max_messages=10),
+            GroupConfig(
+                name="Group 2", save_file="test.json", max_messages=10
+            ),  # 중복 파일
         ]
 
         with pytest.raises(ValueError, match="중복된 save_file 경로가 있습니다"):
@@ -216,7 +223,7 @@ ai_integration:
 
         # 그룹 수가 max_parallel_groups를 초과하는 경우
         config.whatsapp_groups = [
-            GroupConfig(name=f"Group {i}", save_file=f"test{i}.json")
+            GroupConfig(name=f"Group {i}", save_file=f"test{i}.json", max_messages=10)
             for i in range(6)  # 6개 그룹
         ]
         config.scraper_settings.max_parallel_groups = 5  # 최대 5개
@@ -238,6 +245,7 @@ class TestAsyncGroupScraper:
             save_file="test.json",
             scrape_interval=60,
             priority="HIGH",
+            max_messages=20,
         )
 
     def test_should_initialize_async_scraper(self, mock_group_config):
@@ -351,9 +359,9 @@ class TestMultiGroupManager:
     def mock_group_configs(self):
         """테스트용 그룹 설정 리스트 픽스처"""
         return [
-            GroupConfig(name="Group 1", save_file="test1.json"),
-            GroupConfig(name="Group 2", save_file="test2.json"),
-            GroupConfig(name="Group 3", save_file="test3.json"),
+            GroupConfig(name="Group 1", save_file="test1.json", max_messages=15),
+            GroupConfig(name="Group 2", save_file="test2.json", max_messages=15),
+            GroupConfig(name="Group 3", save_file="test3.json", max_messages=15),
         ]
 
     def test_should_initialize_multi_group_manager(self, mock_group_configs):

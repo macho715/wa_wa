@@ -218,20 +218,24 @@ wa_wa/
         └── success/                    # 성공 데이터
 ```
 
-## 🔄 whatsapp-web.js 통합 (개발 중)
+## 🔄 whatsapp-web.js 통합
 
-### 현재 상태
-- Phase 1: 환경 설정 완료 ✅
-- Phase 2: Node.js 스크래퍼 구현 중 🔄
-- Phase 3: Python-Node.js 브릿지 구현 예정
-- Phase 4: 통합 및 설정 예정
-- Phase 5: 문서화 예정
-- Phase 6: 테스트 및 검증 예정
+- ✅ Playwright ↔ whatsapp-web.js 듀얼 백엔드 지원
+- ✅ `--backend {playwright,webjs,auto}` CLI 플래그
+- ✅ `--no-webjs-fallback` 옵션으로 전환 제어
+- ✅ Node 스크래퍼 멀티 그룹·ISO 타임스탬프 출력
+- ✅ Python 브릿지에서 자동 환경 검사 및 JSON 파싱
 
-### 예상 기능
-- Playwright 실패 시 whatsapp-web.js로 자동 전환
-- 사용자가 백엔드 선택 가능 (playwright/webjs/auto)
-- Node.js 기반 대안 스크래핑 방법 제공
+```bash
+# webjs 백엔드 직접 실행
+python run_optimal_scraper.py --backend webjs
+
+# 자동 전환 모드 (Playwright 실패 시 webjs로 재시도)
+python run_optimal_scraper.py --backend auto
+
+# 전환 비활성화
+python run_optimal_scraper.py --backend playwright --no-webjs-fallback
+```
 
 ## 🛠️ 개발 환경
 
