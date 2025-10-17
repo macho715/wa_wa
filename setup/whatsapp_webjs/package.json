@@ -5,8 +5,10 @@
   "main": "whatsapp_webjs_scraper.js",
   "scripts": {
     "start": "node whatsapp_webjs_scraper.js",
-    "test": "node test_scraper.js",
-    "install-deps": "npm install"
+    "scrape": "node whatsapp_webjs_scraper.js",
+    "install-deps": "npm install",
+    "ci": "npm ci",
+    "test": "echo \"No tests defined for whatsapp-web.js scraper\""
   },
   "dependencies": {
     "whatsapp-web.js": "^1.23.0",
