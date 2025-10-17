@@ -257,22 +257,83 @@ class TestAsyncGroupScraper:
             group_config=mock_group_config, chrome_data_dir="chrome-data", headless=True
         )
 
-        with patch("playwright.async_api.async_playwright") as mock_playwright:
+        with patch("playwright.async_api.async_playwright") as mock_async_playwright:
+            mock_playwright = AsyncMock()
             mock_browser = AsyncMock()
             mock_context = AsyncMock()
             mock_page = AsyncMock()
 
-            mock_playwright.return_value.__aenter__.return_value.chromium.launch.return_value = (
-                mock_browser
+            mock_async_playwright.return_value.start = AsyncMock(
+                return_value=mock_playwright
             )
+            mock_playwright.chromium = Mock()
+            mock_playwright.chromium.launch = AsyncMock(return_value=mock_browser)
             mock_browser.new_context.return_value = mock_context
             mock_context.new_page.return_value = mock_page
 
             await scraper.initialize()
 
-            assert scraper.browser is not None
-            assert scraper.context is not None
-            assert scraper.page is not None
+            assert scraper.browser is mock_browser
+            assert scraper.context is mock_context
+            assert scraper.page is mock_page
+
+    @pytest.mark.asyncio
+    async def test_should_persist_session_state_after_login(
+        self, mock_group_config, tmp_path
+    ):
+        """로그인 후 세션 저장 테스트/Ensure session state persists after login."""
+
+        scraper = AsyncGroupScraper(
+            group_config=mock_group_config,
+            chrome_data_dir=str(tmp_path),
+            headless=True,
+        )
+
+        scraper.context = AsyncMock()
+        scraper.context.storage_state = AsyncMock()
+        scraper.page = AsyncMock()
+        scraper.loading_optimizer.wait_for_chat_loading_enhanced = AsyncMock(
+            return_value=True
+        )
+        scraper.stealth_features.solve_captcha_interactive = AsyncMock()
+        scraper._is_logged_in = AsyncMock(return_value=False)
+
+        result = await scraper.wait_for_whatsapp_login()
+
+        assert result is True
+        scraper.context.storage_state.assert_awaited()
+        storage_call = scraper.context.storage_state.await_args
+        assert storage_call is not None
+        saved_path = storage_call.kwargs.get("path")
+        if not saved_path and storage_call.args:
+            saved_path = storage_call.args[0]
+        assert saved_path
+        assert "storage_state.json" in str(saved_path)
+
+    @pytest.mark.asyncio
+    async def test_should_restore_existing_session(
+        self, mock_group_config, tmp_path
+    ):
+        """기존 세션 복원 테스트/Restore saved session state."""
+
+        storage_file = tmp_path / "storage_state.json"
+        storage_file.write_text("{}", encoding="utf-8")
+
+        scraper = AsyncGroupScraper(
+            group_config=mock_group_config,
+            chrome_data_dir=str(tmp_path),
+            headless=True,
+        )
+        scraper._loaded_existing_session = True
+        scraper.context = AsyncMock()
+        scraper.context.storage_state = AsyncMock()
+        scraper.page = AsyncMock()
+        scraper._is_logged_in = AsyncMock(return_value=True)
+
+        result = await scraper.wait_for_whatsapp_login()
+
+        assert result is True
+        scraper.context.storage_state.assert_awaited()
 
     @pytest.mark.asyncio
     async def test_should_scrape_messages_from_whatsapp(self, mock_group_config):
