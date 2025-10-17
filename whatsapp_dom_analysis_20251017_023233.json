@@ -1,0 +1,54 @@
+{
+  "search_elements": [
+    {
+      "selector": "div[role=\"textbox\"]:nth-child(1)",
+      "tag_name": "DIV",
+      "text_content": "",
+      "aria_label": "검색 입력 텍스트 상자",
+      "title": null,
+      "placeholder": null,
+      "data_testid": null,
+      "role": "textbox"
+    },
+    {
+      "selector": "div[contenteditable=\"true\"]:nth-child(1)",
+      "tag_name": "DIV",
+      "text_content": "",
+      "aria_label": "검색 입력 텍스트 상자",
+      "title": null,
+      "placeholder": null,
+      "data_testid": null,
+      "role": "textbox"
+    }
+  ],
+  "chat_elements": [
+    {
+      "selector": "[role=\"row\"]:nth-child(1)",
+      "tag_name": "DIV",
+      "text_content": "default-group-refreshedLogistic1:41 AMstatus-dblcheck나: Hi",
+      "aria_label": null,
+      "title": null,
+      "data_testid": null,
+      "role": "row"
+    },
+    {
+      "selector": "[aria-label*=\"chat\" i]:nth-child(1)",
+      "tag_name": "DIV",
+      "text_content": "모두읽지 않음즐겨찾기그룹",
+      "aria_label": "chat-list-filters",
+      "title": null,
+      "data_testid": null,
+      "role": "tablist"
+    },
+    {
+      "selector": "div[role=\"button\"]:nth-child(1)",
+      "tag_name": "DIV",
+      "text_content": "new-chat-outline",
+      "aria_label": "새 대화",
+      "title": null,
+      "data_testid": null,
+      "role": "button"
+    }
+  ],
+  "message_elements": []
+}

@@ -4,9 +4,9 @@
   "description": "WhatsApp Web.js scraper for MACHO-GPT v3.5-optimal",
   "main": "whatsapp_webjs_scraper.js",
   "scripts": {
-    "start": "node whatsapp_webjs_scraper.js",
-    "test": "node test_scraper.js",
-    "install-deps": "npm install"
+    "start": "node whatsapp_webjs_scraper.js \"ALL\" 50",
+    "ci": "npm ci",
+    "check": "node check_nodejs.js"
   },
   "dependencies": {
     "whatsapp-web.js": "^1.23.0",

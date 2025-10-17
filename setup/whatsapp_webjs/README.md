@@ -1,6 +1,6 @@
 # WhatsApp Web.js 통합 가이드
 
-> **MACHO-GPT v3.5-optimal WhatsApp Web.js 통합**  
+> **MACHO-GPT v3.5-optimal WhatsApp Web.js 통합**
 > **Tier 4 Setup & Backup - 대안 스크래핑 방법**
 
 ## 🎯 개요
@@ -64,11 +64,12 @@ node whatsapp_webjs_scraper.js "HVDC 물류팀" 50
 
 ```bash
 # 기본 사용법
-node whatsapp_webjs_scraper.js <group_name> [max_messages] [output_file]
+node whatsapp_webjs_scraper.js <group|group1,group2|ALL> [max_messages]
 
 # 예시들
 node whatsapp_webjs_scraper.js "HVDC 물류팀" 50
-node whatsapp_webjs_scraper.js "MR.CHA 전용" 100 output.json
+node whatsapp_webjs_scraper.js "HVDC 물류팀,MR.CHA 전용" 100
+node whatsapp_webjs_scraper.js "ALL" 75
 ```
 
 ### Python 브릿지 사용
@@ -76,12 +77,13 @@ node whatsapp_webjs_scraper.js "MR.CHA 전용" 100 output.json
 ```python
 from setup.whatsapp_webjs.whatsapp_webjs_bridge import WhatsAppWebJSBridge
 
-# 브릿지 초기화
-bridge = WhatsAppWebJSBridge()
+from macho_gpt.async_scraper.group_config import GroupConfig
+from setup.whatsapp_webjs.whatsapp_webjs_bridge import WhatsAppWebJSBridge
 
-# 그룹 스크래핑
-result = await bridge.scrape_group("HVDC 물류팀", max_messages=50)
-print(result)
+group_config = GroupConfig(name="HVDC 물류팀", save_file="data/hvdc.json", max_messages=50)
+
+result = await bridge.scrape_group(group_config)
+print(result.raw_payload)
 ```
 
 ### MACHO-GPT 통합 사용
@@ -91,7 +93,10 @@ print(result)
 python run_optimal_scraper.py --backend webjs
 
 # 자동 전환 모드 (Playwright 실패 시 whatsapp-web.js로 전환)
-python run_optimal_scraper.py --backend auto --webjs-fallback
+python run_optimal_scraper.py --backend auto
+
+# 전환 비활성화
+python run_optimal_scraper.py --backend playwright --no-webjs-fallback
 
 # 특정 그룹만 스크래핑
 python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀" "MR.CHA 전용"
@@ -127,12 +132,13 @@ export WWEBJS_AUTH_DIR=./.wwebjs_auth
 ### Node.js 스크래퍼 (whatsapp_webjs_scraper.js)
 
 - ✅ QR 코드 인증
-- ✅ 그룹 메시지 수집
-- ✅ JSON 형식 출력
+- ✅ 단일·다중 그룹 메시지 수집
+- ✅ 표준화된 JSON 형식 출력 (stdout 전용)
 - ✅ CLI 인자 처리
 - ✅ 에러 핸들링
 - ✅ 타임아웃 처리
 - ✅ 미디어 정보 수집
+- ✅ ISO 8601 타임스탬프 제공
 
 ### Python 브릿지 (whatsapp_webjs_bridge.py)
 
@@ -142,6 +148,7 @@ export WWEBJS_AUTH_DIR=./.wwebjs_auth
 - ✅ JSON 파싱 및 변환
 - ✅ 에러 핸들링 및 로깅
 - ✅ 세션 정리 기능
+- ✅ Playwright 자동 전환을 위한 결과 포맷 정규화
 
 ## 📊 Playwright vs whatsapp-web.js 비교
 
@@ -273,7 +280,7 @@ from setup.whatsapp_webjs.whatsapp_webjs_bridge import WhatsAppWebJSBridge
 async def scrape_multiple_groups():
     bridge = WhatsAppWebJSBridge()
     groups = ["HVDC 물류팀", "MR.CHA 전용", "ADNOC Berth Coordination"]
-    
+
     for group in groups:
         result = await bridge.scrape_group(group, max_messages=50)
         print(f"{group}: {result['status']}")

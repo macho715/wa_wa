@@ -1,6 +1,6 @@
 # WhatsApp Web.js 통합 가이드
 
-> **MACHO-GPT v3.5-optimal WhatsApp Web.js 통합**  
+> **MACHO-GPT v3.5-optimal WhatsApp Web.js 통합**
 > **듀얼 백엔드 지원 - Playwright + whatsapp-web.js**
 
 ## 🎯 개요
@@ -58,6 +58,9 @@ python run_optimal_scraper.py --backend webjs
 
 # 특정 그룹만 스크래핑
 python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀"
+
+# 쉼표로 복수 그룹 지정
+python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀" "MR.CHA 전용"
 ```
 
 #### 3. 자동 전환 (Auto)
@@ -65,8 +68,8 @@ python run_optimal_scraper.py --backend webjs --groups "HVDC 물류팀"
 # Playwright 우선, 실패 시 whatsapp-web.js로 전환
 python run_optimal_scraper.py --backend auto
 
-# 자동 전환 활성화
-python run_optimal_scraper.py --backend auto --webjs-fallback
+# 전환 비활성화 옵션
+python run_optimal_scraper.py --backend auto --no-webjs-fallback
 ```
 
 ### 설정 파일에서 백엔드 지정
@@ -146,7 +149,7 @@ npm --version
 
 ```bash
 cd setup/whatsapp_webjs
-npm install
+npm ci
 ```
 
 ### 3. 환경 확인
@@ -233,12 +236,12 @@ from setup.whatsapp_webjs.whatsapp_webjs_bridge import WhatsAppWebJSBridge
 
 async def benchmark():
     bridge = WhatsAppWebJSBridge()
-    
+
     # whatsapp-web.js 벤치마크
     start = time.time()
     result = await bridge.scrape_group('테스트그룹', 50)
     webjs_time = time.time() - start
-    
+
     print(f'whatsapp-web.js: {webjs_time:.2f}초')
     print(f'상태: {result[\"status\"]}')
 

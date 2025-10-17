@@ -1,186 +1,202 @@
 #!/usr/bin/env node
 /**
- * WhatsApp Web.js 스크래퍼
- * MACHO-GPT v3.5-optimal WhatsApp Web.js 통합
- * 
- * 사용법: node whatsapp_webjs_scraper.js <group_name> [max_messages]
- * 예시: node whatsapp_webjs_scraper.js "HVDC 물류팀" 50
+ * whatsapp-web.js 기반 그룹 스크래퍼입니다. (KR) WhatsApp Web.js based group scraper. (EN)
+ *
+ * Usage:
+ *   node whatsapp_webjs_scraper.js "Group Name" [max_messages]
+ *   node whatsapp_webjs_scraper.js "Group A,Group B" 75
+ *   node whatsapp_webjs_scraper.js "ALL" 50
  */
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
-const fs = require('fs');
 const path = require('path');
 
-// CLI 인자 처리
 const args = process.argv.slice(2);
-const groupName = args[0];
-const maxMessages = parseInt(args[1]) || 50;
-const outputFile = args[2] || null;
+const groupSpec = args[0];
+const maxMessages = Number.parseInt(args[1] || '50', 10);
 
-if (!groupName) {
-    console.error('❌ 사용법: node whatsapp_webjs_scraper.js <group_name> [max_messages] [output_file]');
-    console.error('예시: node whatsapp_webjs_scraper.js "HVDC 물류팀" 50');
-    process.exit(1);
+const log = (...messages) => console.error(...messages);
+
+if (!groupSpec) {
+  log('❌ Usage: node whatsapp_webjs_scraper.js "<group|group1,group2|ALL>" [max_messages]');
+  process.exitCode = 1;
+  process.stdout.write(
+    JSON.stringify({
+      status: 'FAIL',
+      error: 'GROUP_SPEC_MISSING',
+      meta: {
+        reason: 'Group specification argument is required.',
+      },
+    }),
+  );
+  process.exit();
 }
 
-console.log('🚀 MACHO-GPT v3.5-optimal WhatsApp Web.js 스크래퍼 시작');
-console.log(`📋 대상 그룹: ${groupName}`);
-console.log(`📊 최대 메시지 수: ${maxMessages}`);
+const normaliseGroupSpec = (spec) => {
+  if (!spec) {
+    return [];
+  }
+  if (spec.trim().toUpperCase() === 'ALL') {
+    return null;
+  }
+  try {
+    if (spec.trim().startsWith('[')) {
+      const parsed = JSON.parse(spec);
+      if (Array.isArray(parsed)) {
+        return parsed.map((value) => String(value).trim()).filter(Boolean);
+      }
+    }
+  } catch (error) {
+    log('⚠️  Failed to parse JSON group specification:', error.message);
+  }
+  return spec
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+};
 
-// 클라이언트 설정
+const requestedGroups = normaliseGroupSpec(groupSpec);
+
+const toIsoString = (timestamp) => {
+  if (!timestamp) {
+    return null;
+  }
+  const milliseconds = Number(timestamp) * 1000;
+  return new Date(milliseconds).toISOString();
+};
+
+const emitResult = (payload, exitCode = 0) => {
+  process.stdout.write(JSON.stringify(payload));
+  process.exitCode = exitCode;
+};
+
 const client = new Client({
-    authStrategy: new LocalAuth({
-        clientId: "macho-gpt-optimal"
-    }),
-    puppeteer: {
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu'
-        ]
-    }
+  authStrategy: new LocalAuth({ clientId: 'macho-gpt-optimal' }),
+  puppeteer: {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu',
+    ],
+  },
 });
 
-// QR 코드 이벤트
 client.on('qr', (qr) => {
-    console.log('📱 QR 코드를 스캔하여 WhatsApp에 로그인하세요:');
-    qrcode.generate(qr, { small: true });
-    console.log('⏳ 로그인 대기 중...');
+  log('📱 Scan the QR code to authenticate.');
+  qrcode.generate(qr, { small: true });
 });
 
-// 인증 상태 이벤트
 client.on('authenticated', () => {
-    console.log('✅ WhatsApp 인증 완료');
+  log('✅ Authentication successful.');
 });
 
-// 인증 실패 이벤트
-client.on('auth_failure', (msg) => {
-    console.error('❌ 인증 실패:', msg);
-    process.exit(1);
+client.on('auth_failure', (message) => {
+  log('❌ Authentication failure:', message);
 });
 
-// 연결 끊김 이벤트
-client.on('disconnected', (reason) => {
-    console.log('🔌 연결이 끊어졌습니다:', reason);
-});
-
-// 준비 완료 이벤트
 client.on('ready', async () => {
-    console.log('🎉 WhatsApp Web.js 클라이언트 준비 완료');
-    
-    try {
-        // 채팅 목록 가져오기
-        console.log('📋 채팅 목록을 가져오는 중...');
-        const chats = await client.getChats();
-        
-        // 대상 그룹 찾기
-        const group = chats.find(chat => 
-            chat.isGroup && chat.name === groupName
-        );
-        
-        if (!group) {
-            console.error(`❌ 그룹을 찾을 수 없습니다: ${groupName}`);
-            console.log('📋 사용 가능한 그룹 목록:');
-            const groupChats = chats.filter(chat => chat.isGroup);
-            groupChats.forEach(chat => {
-                console.log(`  - ${chat.name}`);
-            });
-            await client.destroy();
-            process.exit(1);
-        }
-        
-        console.log(`✅ 그룹 발견: ${group.name}`);
-        console.log(`👥 참여자 수: ${group.participants.length}`);
-        
-        // 메시지 가져오기
-        console.log(`📨 최근 ${maxMessages}개 메시지를 가져오는 중...`);
-        const messages = await group.fetchMessages({ limit: maxMessages });
-        
-        console.log(`📊 ${messages.length}개 메시지 수집 완료`);
-        
-        // 메시지 데이터 변환
-        const messageData = messages.map(msg => ({
-            id: msg.id.id,
-            body: msg.body || '',
-            timestamp: msg.timestamp,
-            author: msg.author || msg.from,
-            from: msg.from,
-            to: msg.to,
-            type: msg.type,
-            isForwarded: msg.isForwarded,
-            isStarred: msg.isStarred,
-            hasQuotedMsg: msg.hasQuotedMsg,
-            quotedMsgId: msg.quotedMsgId,
-            media: msg.hasMedia ? {
-                mimetype: msg.media.mimetype,
-                filename: msg.media.filename,
-                size: msg.media.filesize
-            } : null
-        }));
-        
-        // 결과 데이터 구성
-        const result = {
-            status: 'SUCCESS',
-            timestamp: new Date().toISOString(),
-            group: {
-                name: group.name,
-                id: group.id.id,
-                participants: group.participants.length,
-                isGroup: group.isGroup
-            },
-            messages: messageData,
-            summary: {
-                total_messages: messageData.length,
-                scraped_at: new Date().toISOString(),
-                scraper_version: '3.5-optimal-webjs'
-            }
-        };
-        
-        // JSON 출력
-        const jsonOutput = JSON.stringify(result, null, 2);
-        
-        if (outputFile) {
-            // 파일로 저장
-            const outputPath = path.resolve(outputFile);
-            fs.writeFileSync(outputPath, jsonOutput, 'utf8');
-            console.log(`💾 결과가 파일에 저장되었습니다: ${outputPath}`);
-        } else {
-            // 콘솔에 출력
-            console.log('📄 결과 데이터:');
-            console.log(jsonOutput);
-        }
-        
-        console.log('✅ 스크래핑 완료!');
-        
-    } catch (error) {
-        console.error('❌ 스크래핑 중 오류 발생:', error.message);
-        process.exit(1);
-    } finally {
-        // 클라이언트 종료
-        await client.destroy();
-        console.log('🔌 클라이언트 연결 종료');
+  log('🚀 whatsapp-web.js client ready.');
+  const groupsPayload = [];
+
+  try {
+    const chats = await client.getChats();
+    const groupChats = chats.filter((chat) => chat.isGroup);
+
+    const targets =
+      requestedGroups === null
+        ? groupChats
+        : groupChats.filter((chat) => requestedGroups.includes(chat.name));
+
+    if (!targets.length) {
+      emitResult(
+        {
+          status: 'FAIL',
+          error: 'GROUP_NOT_FOUND',
+          meta: {
+            requested: requestedGroups,
+            available_groups: groupChats.map((chat) => chat.name),
+          },
+        },
+        1,
+      );
+      await client.destroy();
+      return;
     }
-});
 
-// 에러 처리
-client.on('error', (error) => {
-    console.error('❌ 클라이언트 오류:', error);
-    process.exit(1);
-});
+    for (const group of targets) {
+      log(`📨 Fetching up to ${maxMessages} messages from ${group.name}`);
+      const messages = await group.fetchMessages({ limit: maxMessages });
+      const serialisedMessages = [];
 
-// 프로세스 종료 처리
-process.on('SIGINT', async () => {
-    console.log('\n⚠️  사용자에 의해 중단됨');
+      for (const message of messages) {
+        serialisedMessages.push({
+          id: message.id.id,
+          body: message.body || '',
+          timestamp_unix: message.timestamp,
+          timestamp_iso: toIsoString(message.timestamp),
+          author: message.author || message.from,
+          from: message.from,
+          to: message.to,
+          type: message.type,
+          has_media: Boolean(message.hasMedia),
+          quoted_msg_id: message.quotedMsgId || null,
+          is_forwarded: Boolean(message.isForwarded),
+          is_starred: Boolean(message.isStarred),
+        });
+      }
+
+      groupsPayload.push({
+        name: group.name,
+        id: group.id._serialized,
+        participants: Array.isArray(group.participants)
+          ? group.participants.length
+          : null,
+        messages: serialisedMessages,
+        summary: {
+          total_messages: serialisedMessages.length,
+          fetched_at: new Date().toISOString(),
+        },
+      });
+    }
+
+    emitResult({
+      status: 'SUCCESS',
+      groups: groupsPayload,
+      meta: {
+        backend: 'webjs',
+        scraped_at: new Date().toISOString(),
+        requested_groups: requestedGroups,
+        max_messages: maxMessages,
+        working_directory: path.resolve('.'),
+      },
+    });
+  } catch (error) {
+    log('❌ Error while scraping:', error.message);
+    emitResult(
+      {
+        status: 'FAIL',
+        error: error.message,
+      },
+      1,
+    );
+  } finally {
     await client.destroy();
-    process.exit(0);
+    log('🔌 Client connection closed.');
+  }
 });
 
-// 클라이언트 초기화
-console.log('🔄 WhatsApp Web.js 클라이언트 초기화 중...');
+client.on('disconnected', (reason) => {
+  log('🔌 Client disconnected:', reason);
+});
+
+client.on('error', (error) => {
+  log('❌ Client error:', error.message || error);
+});
+
 client.initialize();

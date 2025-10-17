@@ -20,7 +20,7 @@ import json
 import logging
 import random
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from playwright.async_api import async_playwright, Page, Browser
 try:
@@ -35,11 +35,13 @@ from macho_gpt.core.logi_whatsapp_241219 import WhatsAppProcessor
 from macho_gpt.core.logi_ai_summarizer_241219 import LogiAISummarizer
 
 # 로깅 설정
+_LOG_DIR = Path("logs")
+_LOG_DIR.mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/rpa_whatsapp.log'),
+        logging.FileHandler(_LOG_DIR / 'rpa_whatsapp.log'),
         logging.StreamHandler()
     ]
 )
