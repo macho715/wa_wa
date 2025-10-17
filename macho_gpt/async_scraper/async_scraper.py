@@ -4,6 +4,7 @@ Playwright 기반 비동기 스크래핑 및 MACHO-GPT AI 통합
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 from datetime import datetime
@@ -83,7 +84,10 @@ class AsyncGroupScraper:
         try:
             self.playwright = await async_playwright().start()
 
-            storage_dir = Path(self.chrome_data_dir)
+            group_hash = hashlib.md5(
+                self.group_config.name.encode("utf-8")
+            ).hexdigest()[:8]
+            storage_dir = Path(self.chrome_data_dir) / f"profile_{group_hash}"
             storage_dir.mkdir(parents=True, exist_ok=True)
 
             # Chrome 브라우저 시작 (영구 세션 유지)
