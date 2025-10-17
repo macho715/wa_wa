@@ -28,7 +28,6 @@ from macho_gpt.async_scraper.group_config import (  # noqa: E402
 )
 from macho_gpt.async_scraper.multi_group_manager import MultiGroupManager  # noqa: E402
 from setup.whatsapp_webjs.whatsapp_webjs_bridge import (  # noqa: E402
-    BridgeResult,
     WhatsAppWebJSBridge,
 )
 
@@ -166,12 +165,16 @@ async def run_webjs_backend(
     Execute the whatsapp-web.js backend. (EN)
     """
 
-    bridge = WhatsAppWebJSBridge(settings)
+    bridge = WhatsAppWebJSBridge(
+        script_dir=settings.script_dir,
+        timeout=settings.timeout,
+        auto_install_deps=settings.auto_install_deps,
+    )
     results: List[Dict[str, Any]] = []
     for group_config in group_configs:
         group_config.max_messages = max_messages
-        bridge_result: BridgeResult = await bridge.scrape_group(
-            group_config, max_messages=max_messages, include_media=include_media
+        bridge_result = await bridge.scrape_group(
+            group_config.name, limit=max_messages, include_media=include_media
         )
         if bridge_result.success and bridge_result.messages is not None:
             save_path = Path(group_config.save_file)

@@ -157,3 +157,18 @@ config.env
 # Cache directories
 .cache/
 cache/
+
+# WhatsApp Web.js specific
+setup/whatsapp_webjs/node_modules/
+setup/whatsapp_webjs/.wwebjs_auth/
+setup/whatsapp_webjs/.wwebjs_cache/
+
+# Chrome user data
+chrome-data/
+
+# Conversations and patches
+conversations.json
+patch*.md
+
+# WhatsApp DOM analysis
+whatsapp_dom_analysis_*.json
