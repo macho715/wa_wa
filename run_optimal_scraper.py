@@ -160,6 +160,7 @@ async def run_webjs_backend(
     settings: WebJSSettings,
     *,
     max_messages: int,
+    include_media: bool = False,
 ) -> List[Dict[str, Any]]:
     """whatsapp-web.js 백엔드를 실행합니다. (KR)
     Execute the whatsapp-web.js backend. (EN)
@@ -170,7 +171,7 @@ async def run_webjs_backend(
     for group_config in group_configs:
         group_config.max_messages = max_messages
         bridge_result: BridgeResult = await bridge.scrape_group(
-            group_config, max_messages=max_messages
+            group_config, max_messages=max_messages, include_media=include_media
         )
         if bridge_result.success and bridge_result.messages is not None:
             save_path = Path(group_config.save_file)
@@ -212,6 +213,7 @@ async def run_optimal_scraper(
     headless: bool = True,
     backend: Optional[str] = None,
     webjs_fallback: Optional[bool] = None,
+    include_media: bool = False,
 ) -> List[Dict[str, Any]]:
     """최적화된 스크래퍼를 실행합니다. (KR)
     Run the optimal multi-group scraper. (EN)
@@ -271,6 +273,7 @@ async def run_optimal_scraper(
                 selected_groups,
                 config.scraper_settings.webjs_settings,
                 max_messages=max_messages,
+                include_media=include_media,
             )
         elif primary_backend == BACKEND_PLAYWRIGHT:
             try:
@@ -282,6 +285,7 @@ async def run_optimal_scraper(
                         selected_groups,
                         config.scraper_settings.webjs_settings,
                         max_messages=max_messages,
+                        include_media=include_media,
                     )
                 else:
                     raise
@@ -309,6 +313,7 @@ async def run_optimal_scraper(
                             fallback_groups,
                             config.scraper_settings.webjs_settings,
                             max_messages=max_messages,
+                            include_media=include_media,
                         )
                         for fallback_result in fallback_results:
                             for idx, original in enumerate(results):
@@ -404,6 +409,13 @@ def main():
     parser.add_argument("--timeout", type=int, default=30000, help="타임아웃 (밀리초)")
 
     parser.add_argument(
+        "--webjs-include-media",
+        dest="include_media",
+        action="store_true",
+        help="whatsapp-web.js에서 미디어(base64) 포함",
+    )
+
+    parser.add_argument(
         "--no-headless", action="store_true", help="헤드리스 모드 비활성화"
     )
 
@@ -437,6 +449,7 @@ def main():
                 headless=not args.no_headless,
                 backend=args.backend,
                 webjs_fallback=args.webjs_fallback,
+                include_media=args.include_media,
             )
         )
 

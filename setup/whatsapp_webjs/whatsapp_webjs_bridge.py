@@ -1,327 +1,291 @@
-"""WhatsApp Web.js 브릿지 유틸리티입니다. (KR) WhatsApp Web.js bridge utilities. (EN)
-
-Python 환경에서 whatsapp-web.js Node 스크래퍼를 실행하기 위한 비동기 래퍼를 제공합니다.
-"""
+"""whatsapp-web.js 브릿지 모듈/whatsapp-web.js bridge module."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import subprocess
+import shutil
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from macho_gpt.async_scraper.group_config import GroupConfig, WebJSSettings
-
-LOGGER = logging.getLogger(__name__)
+from typing import Any, Dict, List, Optional, Sequence
 
 
-@dataclass
-class BridgeResult:
-    """브릿지 실행 결과입니다. (KR) Result payload returned by the bridge. (EN)
+@dataclass(slots=True)
+class WebJSEnvironmentStatus:
+    """whatsapp-web.js 환경 상태/whatsapp-web.js environment status."""
 
-    Args:
-        group_name (str): 대상 그룹 이름입니다.
-        success (bool): 실행 성공 여부입니다.
-        messages_scraped (int): 수집된 메시지 수입니다.
-        error (Optional[str]): 오류 메시지입니다.
-        raw_payload (Optional[Dict[str, Any]]): 원본 Node 출력입니다.
-    """
-
-    group_name: str
-    success: bool
-    messages_scraped: int
-    error: Optional[str] = None
-    raw_payload: Optional[Dict[str, Any]] = None
-    messages: Optional[List[Dict[str, Any]]] = None
+    node_available: bool
+    npm_available: bool
+    dependencies_installed: bool
+    script_exists: bool
+    package_json_exists: bool
+    timestamp: str
 
 
 class WhatsAppWebJSBridge:
-    """whatsapp-web.js Python 브릿지입니다. (KR) Python bridge for whatsapp-web.js. (EN)
-
-    Args:
-        settings (WebJSSettings): whatsapp-web.js 설정입니다.
-        node_path (str): Node 실행 파일 경로입니다.
-        npm_path (str): npm 실행 파일 경로입니다.
-    """
+    """whatsapp-web.js 연동 브릿지/Bridge for whatsapp-web.js integration."""
 
     def __init__(
         self,
-        settings: Optional[WebJSSettings] = None,
         *,
-        node_path: str = "node",
-        npm_path: str = "npm",
+        script_dir: Optional[str | Path] = None,
+        timeout: int = 300,
+        auto_install_deps: bool = True,
     ) -> None:
-        self.settings = settings or WebJSSettings()
-        self.node_path = node_path
-        self.npm_path = npm_path
-        self.script_dir = Path(self.settings.script_dir)
-        self.node_script = self.script_dir / "whatsapp_webjs_scraper.js"
-        self._environment_ready = False
+        """브릿지 초기화/Initialise the bridge."""
 
-    async def ensure_environment(self) -> bool:
-        """실행 환경을 준비합니다. (KR) Ensure the execution environment is ready. (EN)"""
+        self.script_dir = (
+            Path(script_dir).resolve()
+            if script_dir
+            else Path(__file__).resolve().parent
+        )
+        self.script_path = self.script_dir / "whatsapp_webjs_scraper.js"
+        self.timeout = timeout
+        self.auto_install_deps = auto_install_deps
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
-        if self._environment_ready:
-            return True
-        if not await self.check_nodejs_available():
-            return False
-        if not await self.check_dependencies_installed():
-            if not self.settings.auto_install_deps:
-                LOGGER.error("npm 의존성이 설치되지 않았습니다.")
-                return False
-            if not await self.install_dependencies():
-                return False
-        self._environment_ready = True
-        return True
+    async def ensure_ready(self) -> None:
+        """실행 전 환경 준비/Prepare environment before execution."""
 
-    async def check_nodejs_available(self) -> bool:
-        """Node.js 사용 가능 여부를 확인합니다. (KR) Check whether Node.js is available. (EN)"""
+        self.logger.debug("Checking whatsapp-web.js environment readiness")
 
-        try:
-            completed = await asyncio.get_running_loop().run_in_executor(
-                None,
-                lambda: subprocess.run(
-                    [self.node_path, "--version"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=10,
-                ),
+        if not self._is_node_available():
+            raise EnvironmentError("Node.js executable not found in PATH")
+
+        if not self.script_path.exists():
+            raise FileNotFoundError(f"Script not found: {self.script_path}")
+
+        if not self._dependencies_installed():
+            if not self.auto_install_deps:
+                raise EnvironmentError("Dependencies missing and auto-install disabled")
+            await self.install_dependencies()
+
+    async def install_dependencies(self) -> None:
+        """npm 의존성 설치/Install npm dependencies."""
+
+        npm_command = (
+            "ci" if (self.script_dir / "package-lock.json").exists() else "install"
+        )
+        self.logger.info(
+            "Installing whatsapp-web.js dependencies via npm %s", npm_command
+        )
+
+        process = await asyncio.create_subprocess_exec(
+            "npm",
+            npm_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(self.script_dir),
+        )
+        stdout_bytes, stderr_bytes = await process.communicate()
+
+        self._log_subprocess_stream(stdout_bytes, level=logging.DEBUG)
+        self._log_subprocess_stream(stderr_bytes, level=logging.INFO)
+
+        if process.returncode != 0:
+            raise RuntimeError(
+                "Failed to install npm dependencies: " f"exit code {process.returncode}"
             )
-        except FileNotFoundError:
-            LOGGER.error("Node.js 실행 파일을 찾을 수 없습니다.")
-            return False
-        except subprocess.TimeoutExpired:
-            LOGGER.error("Node.js 버전 확인이 시간 초과되었습니다.")
-            return False
-
-        if completed.returncode != 0:
-            LOGGER.error(
-                "Node.js가 올바르게 설치되지 않았습니다: %s", completed.stderr.strip()
-            )
-            return False
-
-        version_output = completed.stdout.strip()
-        LOGGER.debug("Node.js version output: %s", version_output)
-        try:
-            major_version = int(version_output.lstrip("v").split(".")[0])
-        except (ValueError, IndexError):
-            LOGGER.warning("Node.js 버전 파싱에 실패했습니다: %s", version_output)
-            return True
-        if major_version < 14:
-            LOGGER.error("Node.js 14 이상이 필요합니다. 현재: %s", version_output)
-            return False
-        return True
-
-    async def check_dependencies_installed(self) -> bool:
-        """필수 npm 패키지가 설치되었는지 확인합니다. (KR) Verify npm dependencies are installed. (EN)"""
-
-        node_modules = self.script_dir / "node_modules"
-        if not node_modules.exists():
-            return False
-
-        for package_name in ("whatsapp-web.js", "qrcode-terminal"):
-            if not (node_modules / package_name).exists():
-                LOGGER.debug("누락된 패키지 감지: %s", package_name)
-                return False
-        return True
-
-    async def install_dependencies(self) -> bool:
-        """npm 의존성을 설치합니다. (KR) Install required npm dependencies. (EN)"""
-
-        LOGGER.info("npm 의존성 설치를 실행합니다.")
-        try:
-            completed = await asyncio.get_running_loop().run_in_executor(
-                None,
-                lambda: subprocess.run(
-                    [self.npm_path, "ci"],
-                    cwd=str(self.script_dir),
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=max(self.settings.timeout, 60),
-                ),
-            )
-        except FileNotFoundError:
-            LOGGER.error("npm 실행 파일을 찾을 수 없습니다.")
-            return False
-        except subprocess.TimeoutExpired:
-            LOGGER.error("npm ci 명령이 시간 초과되었습니다.")
-            return False
-
-        if completed.returncode != 0:
-            LOGGER.error("npm ci 실패: %s", completed.stderr.strip())
-            return False
-
-        LOGGER.info("npm 의존성이 설치되었습니다.")
-        return True
 
     async def scrape_group(
         self,
-        group_config: GroupConfig,
+        group_name: str,
         *,
-        max_messages: Optional[int] = None,
-    ) -> BridgeResult:
-        """단일 그룹을 스크래핑합니다. (KR) Scrape a single WhatsApp group. (EN)
+        limit: int = 50,
+        include_media: bool = False,
+    ) -> Dict[str, Any]:
+        """단일 그룹 스크랩/Scrape a single WhatsApp group."""
 
-        Args:
-            group_config (GroupConfig): 대상 그룹 설정입니다.
-            max_messages (Optional[int]): 메시지 수집 상한입니다.
-        """
-
-        if not await self.ensure_environment():
-            return BridgeResult(
-                group_name=group_config.name,
-                success=False,
-                messages_scraped=0,
-                error="Node.js 환경이 준비되지 않았습니다.",
-            )
-
-        if not self.node_script.exists():
-            return BridgeResult(
-                group_name=group_config.name,
-                success=False,
-                messages_scraped=0,
-                error=f"Node 스크립트를 찾을 수 없습니다: {self.node_script}",
-            )
-
-        limit = max_messages or group_config.max_messages
-        cmd = [
-            self.node_path,
-            str(self.node_script),
-            group_config.name,
-            str(limit),
-        ]
-
-        LOGGER.info("webjs 스크립트를 실행합니다: %s", " ".join(cmd))
-
-        try:
-            completed = await asyncio.get_running_loop().run_in_executor(
-                None,
-                lambda: subprocess.run(
-                    cmd,
-                    cwd=str(self.script_dir),
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=self.settings.timeout,
-                ),
-            )
-        except subprocess.TimeoutExpired:
-            LOGGER.error("webjs 스크립트가 시간 초과되었습니다.")
-            return BridgeResult(
-                group_name=group_config.name,
-                success=False,
-                messages_scraped=0,
-                error="whatsapp-web.js 실행이 시간 초과되었습니다.",
-            )
-
-        stdout = completed.stdout.strip()
-        stderr = completed.stderr.strip()
-        if stderr:
-            LOGGER.debug("webjs stderr: %s", stderr)
-
-        payload: Dict[str, Any]
-        try:
-            payload = json.loads(stdout) if stdout else {}
-        except json.JSONDecodeError as exc:  # pragma: no cover - defensive branch
-            LOGGER.error("JSON 파싱 실패: %s", exc)
-            return BridgeResult(
-                group_name=group_config.name,
-                success=False,
-                messages_scraped=0,
-                error="whatsapp-web.js 출력 파싱 실패",
-            )
-
-        status = payload.get("status", "FAIL")
-        if completed.returncode != 0 or status != "SUCCESS":
-            error_message = payload.get("error") or stderr or "알 수 없는 오류"
-            LOGGER.error("webjs 스크립트 실패: %s", error_message)
-            return BridgeResult(
-                group_name=group_config.name,
-                success=False,
-                messages_scraped=0,
-                error=error_message,
-                raw_payload=payload or None,
-            )
-
-        groups = payload.get("groups", [])
-        messages: List[Dict[str, Any]] = []
-        for group_entry in groups:
-            if group_entry.get("name") == group_config.name:
-                messages = group_entry.get("messages", [])
-                break
-        else:
-            LOGGER.warning("타깃 그룹이 결과에 없습니다: %s", group_config.name)
-            messages = groups[0].get("messages", []) if groups else []
-
-        return BridgeResult(
-            group_name=group_config.name,
-            success=True,
-            messages_scraped=len(messages),
-            raw_payload=payload,
-            messages=messages,
+        result = await self.scrape_groups(
+            [group_name],
+            limit=limit,
+            include_media=include_media,
+            group_limits={group_name: limit},
         )
+        groups = result.get("groups", [])
+        if groups:
+            return {
+                "status": result.get("status", "UNKNOWN"),
+                "timestamp": result.get("timestamp"),
+                "group": groups[0],
+                "errors": result.get("errors", []),
+            }
+        return result
 
     async def scrape_groups(
-        self, group_configs: List[GroupConfig], *, max_messages: Optional[int] = None
-    ) -> List[BridgeResult]:
-        """여러 그룹을 순차로 스크래핑합니다. (KR) Scrape multiple groups sequentially. (EN)"""
+        self,
+        group_names: Sequence[str],
+        *,
+        limit: int = 50,
+        include_media: bool = False,
+        group_limits: Optional[Dict[str, int]] = None,
+    ) -> Dict[str, Any]:
+        """다중 그룹 스크랩/Scrape multiple WhatsApp groups."""
 
-        results: List[BridgeResult] = []
-        for group_config in group_configs:
-            result = await self.scrape_group(group_config, max_messages=max_messages)
-            results.append(result)
-        return results
+        if not group_names:
+            raise ValueError("At least one group name must be provided")
+
+        await self.ensure_ready()
+
+        command: List[str] = [
+            "node",
+            str(self.script_path),
+            "--limit",
+            str(limit),
+            "--timeout",
+            str(self.timeout),
+        ]
+
+        if include_media:
+            command.append("--include-media")
+
+        for name in group_names:
+            command.extend(["--group", name])
+
+        if group_limits:
+            for name, value in group_limits.items():
+                command.extend(["--group-limit", f"{name}={value}"])
+
+        self.logger.info("Executing whatsapp-web.js scraper: %s", " ".join(command))
+
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(self.script_dir),
+        )
+
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                process.communicate(), timeout=self.timeout
+            )
+        except asyncio.TimeoutError as exc:
+            process.kill()
+            raise TimeoutError("whatsapp-web.js scraper timed out") from exc
+
+        self._log_subprocess_stream(stderr_bytes, level=logging.INFO)
+
+        if process.returncode != 0:
+            raise RuntimeError(
+                "whatsapp-web.js scraper exited with code " f"{process.returncode}"
+            )
+
+        return self._parse_json(stdout_bytes)
+
+    async def cleanup_session(self) -> bool:
+        """세션 데이터 정리/Clean whatsapp-web.js session data."""
+
+        auth_dir = self.script_dir / ".wwebjs_auth"
+        if auth_dir.exists():
+            shutil.rmtree(auth_dir)
+            self.logger.info("whatsapp-web.js session directory removed")
+        return True
+
+    async def inspect_environment(self) -> WebJSEnvironmentStatus:
+        """환경 상태 조회/Inspect current environment status."""
+
+        status = WebJSEnvironmentStatus(
+            node_available=self._is_node_available(),
+            npm_available=self._is_npm_available(),
+            dependencies_installed=self._dependencies_installed(),
+            script_exists=self.script_path.exists(),
+            package_json_exists=(self.script_dir / "package.json").exists(),
+            timestamp=datetime.utcnow().isoformat(),
+        )
+        return status
+
+    def _is_node_available(self) -> bool:
+        """Node.js 가용성 확인/Check Node.js availability."""
+
+        return shutil.which("node") is not None
+
+    def _is_npm_available(self) -> bool:
+        """npm 가용성 확인/Check npm availability."""
+
+        return shutil.which("npm") is not None
+
+    def _dependencies_installed(self) -> bool:
+        """npm 의존성 설치 여부/Check npm dependencies installed."""
+
+        node_modules = self.script_dir / "node_modules"
+        required = [
+            node_modules / "whatsapp-web.js",
+            node_modules / "qrcode-terminal",
+        ]
+        return all(path.exists() for path in required)
+
+    def _parse_json(self, payload: bytes) -> Dict[str, Any]:
+        """JSON 파싱 실행/Parse JSON payload from scraper."""
+
+        try:
+            decoded = payload.decode("utf-8").strip()
+            return json.loads(decoded) if decoded else {}
+        except json.JSONDecodeError as error:
+            self.logger.error("Failed to parse whatsapp-web.js output: %s", decoded)
+            raise ValueError(
+                "Invalid JSON output from whatsapp-web.js scraper"
+            ) from error
+
+    def _log_subprocess_stream(self, payload: bytes, *, level: int) -> None:
+        """서브프로세스 출력 로깅/Log subprocess stream payload."""
+
+        if not payload:
+            return
+
+        text = payload.decode("utf-8", errors="ignore")
+        for line in text.splitlines():
+            self.logger.log(level, "[webjs] %s", line)
 
 
 async def scrape_whatsapp_group(
-    group_config: GroupConfig,
+    group_name: str,
     *,
-    max_messages: Optional[int] = None,
-    settings: Optional[WebJSSettings] = None,
-) -> BridgeResult:
-    """헬퍼 함수로 단일 그룹을 스크래핑합니다. (KR) Convenience wrapper to scrape one group. (EN)"""
-
-    bridge = WhatsAppWebJSBridge(settings)
-    return await bridge.scrape_group(group_config, max_messages=max_messages)
-
-
-async def check_webjs_environment(
-    settings: Optional[WebJSSettings] = None,
+    limit: int = 50,
+    include_media: bool = False,
+    timeout: int = 300,
 ) -> Dict[str, Any]:
-    """whatsapp-web.js 실행 환경을 점검합니다. (KR) Inspect the whatsapp-web.js environment. (EN)"""
+    """단일 그룹 스크랩 편의 함수/Convenience wrapper to scrape one group."""
 
-    bridge = WhatsAppWebJSBridge(settings)
-    return {
-        "nodejs_available": await bridge.check_nodejs_available(),
-        "dependencies_installed": await bridge.check_dependencies_installed(),
-        "script_exists": bridge.node_script.exists(),
-        "package_json_exists": (bridge.script_dir / "package.json").exists(),
-    }
+    bridge = WhatsAppWebJSBridge(timeout=timeout)
+    return await bridge.scrape_group(
+        group_name, limit=limit, include_media=include_media
+    )
 
 
-if __name__ == "__main__":  # pragma: no cover - manual execution helper
+async def check_webjs_environment() -> Dict[str, Any]:
+    """whatsapp-web.js 환경 상태 확인/Inspect whatsapp-web.js environment."""
+
+    bridge = WhatsAppWebJSBridge()
+    status = await bridge.inspect_environment()
+    return status.__dict__
+
+
+# CLI 테스트용
+if __name__ == "__main__":
     import argparse
 
     logging.basicConfig(level=logging.INFO)
 
-    parser = argparse.ArgumentParser(description="whatsapp-web.js bridge CLI")
-    parser.add_argument("group", help="스크래핑할 그룹 이름")
-    parser.add_argument("max_messages", nargs="?", type=int, default=50)
+    parser = argparse.ArgumentParser(description="whatsapp-web.js bridge tester")
+    parser.add_argument("group", help="Group name to scrape")
+    parser.add_argument(
+        "--limit", type=int, default=50, help="Number of messages to fetch"
+    )
+    parser.add_argument(
+        "--include-media",
+        action="store_true",
+        help="Include base64 media payloads",
+    )
     args = parser.parse_args()
 
     async def _main() -> None:
-        settings = WebJSSettings()
-        group = GroupConfig(
-            name=args.group,
-            save_file="bridge_cli.json",
-            max_messages=args.max_messages,
+        result = await scrape_whatsapp_group(
+            args.group,
+            limit=args.limit,
+            include_media=args.include_media,
         )
-        result = await scrape_whatsapp_group(group, settings=settings)
-        print(json.dumps(result.raw_payload or {}, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
     asyncio.run(_main())

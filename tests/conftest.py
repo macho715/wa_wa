@@ -18,14 +18,15 @@ def pytest_pyfunc_call(pyfuncitem: Any) -> bool | None:
         # Get function signature to know which args it expects
         sig = inspect.signature(test_function)
         expected_params = set(sig.parameters.keys())
-        
+
         # Filter funcargs to only include what the function expects
         # Skip pytest-internal fixtures and fixtures the function doesn't declare
         filtered_args = {
-            k: v for k, v in pyfuncitem.funcargs.items()
-            if k in expected_params and k not in {'event_loop_policy', 'event_loop'}
+            k: v
+            for k, v in pyfuncitem.funcargs.items()
+            if k in expected_params and k not in {"event_loop_policy", "event_loop"}
         }
-        
+
         loop = asyncio.new_event_loop()
         try:
             asyncio.set_event_loop(loop)

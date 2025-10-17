@@ -53,6 +53,7 @@ scraper_settings:
     script_dir: "setup/whatsapp_webjs"
     timeout: 300  # 5분
     auto_install_deps: true
+    include_media: false
 
 # Tier 2: Enhancement Settings (선택적)
 enhancements:

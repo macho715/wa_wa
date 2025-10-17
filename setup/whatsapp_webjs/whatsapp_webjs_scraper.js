@@ -1,202 +1,390 @@
 #!/usr/bin/env node
+"use strict";
+
 /**
- * whatsapp-web.js 기반 그룹 스크래퍼입니다. (KR) WhatsApp Web.js based group scraper. (EN)
- *
- * Usage:
- *   node whatsapp_webjs_scraper.js "Group Name" [max_messages]
- *   node whatsapp_webjs_scraper.js "Group A,Group B" 75
- *   node whatsapp_webjs_scraper.js "ALL" 50
+ * MACHO-GPT whatsapp-web.js scraper
+ * Supports multi-group polling with optional media collection.
  */
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const path = require('path');
+const { Client, LocalAuth } = require("whatsapp-web.js");
+const qrcode = require("qrcode-terminal");
 
-const args = process.argv.slice(2);
-const groupSpec = args[0];
-const maxMessages = Number.parseInt(args[1] || '50', 10);
+const DEFAULT_LIMIT = 50;
+const EXIT_CODES = {
+    SUCCESS: 0,
+    INVALID_ARGS: 2,
+    AUTH_FAILURE: 3,
+    RUNTIME_ERROR: 4,
+};
 
-const log = (...messages) => console.error(...messages);
+const stderrLog = (message) => {
+    const prefix = new Date().toISOString();
+    process.stderr.write(`[${prefix}] ${message}\n`);
+};
 
-if (!groupSpec) {
-    log('❌ Usage: node whatsapp_webjs_scraper.js "<group|group1,group2|ALL>" [max_messages]');
-    process.exitCode = 1;
-    process.stdout.write(
-        JSON.stringify({
-            status: 'FAIL',
-            error: 'GROUP_SPEC_MISSING',
-            meta: {
-                reason: 'Group specification argument is required.',
-            },
-        }),
-    );
-    process.exit();
-}
+const parseArguments = (argv) => {
+    const options = {
+        groups: [],
+        limit: DEFAULT_LIMIT,
+        includeMedia: false,
+        timeout: 300,
+        groupLimits: {},
+    };
 
-const normaliseGroupSpec = (spec) => {
-    if (!spec) {
-        return [];
-    }
-    if (spec.trim().toUpperCase() === 'ALL') {
-        return null;
-    }
-    try {
-        if (spec.trim().startsWith('[')) {
-            const parsed = JSON.parse(spec);
-            if (Array.isArray(parsed)) {
-                return parsed.map((value) => String(value).trim()).filter(Boolean);
+    for (let index = 0; index < argv.length; index += 1) {
+        const token = argv[index];
+        switch (token) {
+            case "--group":
+            case "--groups": {
+                const value = argv[index + 1];
+                if (!value) {
+                    throw new Error("Missing value for --group(s)");
+                }
+                index += 1;
+                value
+                    .split(",")
+                    .map((entry) => entry.trim())
+                    .filter((entry) => entry.length > 0)
+                    .forEach((entry) => options.groups.push(entry));
+                break;
+            }
+            case "--limit": {
+                const value = parseInt(argv[index + 1], 10);
+                if (Number.isNaN(value) || value <= 0) {
+                    throw new Error("--limit must be a positive integer");
+                }
+                options.limit = value;
+                index += 1;
+                break;
+            }
+            case "--include-media": {
+                options.includeMedia = true;
+                break;
+            }
+            case "--timeout": {
+                const value = parseInt(argv[index + 1], 10);
+                if (Number.isNaN(value) || value <= 0) {
+                    throw new Error("--timeout must be a positive integer");
+                }
+                options.timeout = value;
+                index += 1;
+                break;
+            }
+            case "--group-limit": {
+                const value = argv[index + 1];
+                if (!value || !value.includes("=")) {
+                    throw new Error("--group-limit requires format <name>=<limit>");
+                }
+                index += 1;
+                const [name, limitValue] = value.split("=");
+                const parsed = parseInt(limitValue, 10);
+                if (!name || Number.isNaN(parsed) || parsed <= 0) {
+                    throw new Error("Invalid --group-limit entry");
+                }
+                options.groupLimits[name.trim()] = parsed;
+                break;
+            }
+            default: {
+                options.groups.push(token);
+                break;
             }
         }
-    } catch (error) {
-        log('⚠️  Failed to parse JSON group specification:', error.message);
     }
-    return spec
-        .split(',')
-        .map((value) => value.trim())
-        .filter(Boolean);
-};
 
-const requestedGroups = normaliseGroupSpec(groupSpec);
+    options.groups = [...new Set(options.groups)].filter((entry) => entry.length > 0);
 
-const toIsoString = (timestamp) => {
-    if (!timestamp) {
-        return null;
+    if (options.groups.length === 0) {
+        throw new Error("At least one group must be provided");
     }
-    const milliseconds = Number(timestamp) * 1000;
-    return new Date(milliseconds).toISOString();
+
+    return options;
 };
 
-const emitResult = (payload, exitCode = 0) => {
-    process.stdout.write(JSON.stringify(payload));
-    process.exitCode = exitCode;
-};
+const buildClient = () =>
+    new Client({
+        authStrategy: new LocalAuth({ clientId: "macho-gpt-optimal" }),
+        puppeteer: {
+            headless: true,
+            args: [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-accelerated-2d-canvas",
+                "--no-first-run",
+                "--no-zygote",
+                "--disable-gpu",
+            ],
+        },
+    });
 
-const client = new Client({
-    authStrategy: new LocalAuth({ clientId: 'macho-gpt-optimal' }),
-    puppeteer: {
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu',
-        ],
-    },
-});
+const formatMessage = async (message, includeMedia) => {
+    const base = {
+        id: message.id.id,
+        chatId: message.id._serialized,
+        body: message.body || "",
+        timestamp: message.timestamp,
+        timestampIso: new Date(message.timestamp * 1000).toISOString(),
+        from: message.from,
+        to: message.to,
+        author: message.author || message.from,
+        type: message.type,
+        isForwarded: Boolean(message.isForwarded),
+        hasQuotedMsg: Boolean(message.hasQuotedMsg),
+        quotedMsgId: message.quotedMsgId || null,
+        fromMe: Boolean(message.fromMe),
+    };
 
-client.on('qr', (qr) => {
-    log('📱 Scan the QR code to authenticate.');
-    qrcode.generate(qr, { small: true });
-});
-
-client.on('authenticated', () => {
-    log('✅ Authentication successful.');
-});
-
-client.on('auth_failure', (message) => {
-    log('❌ Authentication failure:', message);
-});
-
-client.on('ready', async () => {
-    log('🚀 whatsapp-web.js client ready.');
-    const groupsPayload = [];
-
-    try {
-        const chats = await client.getChats();
-        const groupChats = chats.filter((chat) => chat.isGroup);
-
-        const targets =
-            requestedGroups === null
-                ? groupChats
-                : groupChats.filter((chat) => requestedGroups.includes(chat.name));
-
-        if (!targets.length) {
-            emitResult(
-                {
-                    status: 'FAIL',
-                    error: 'GROUP_NOT_FOUND',
-                    meta: {
-                        requested: requestedGroups,
-                        available_groups: groupChats.map((chat) => chat.name),
-                    },
-                },
-                1,
-            );
-            await client.destroy();
-            return;
-        }
-
-        for (const group of targets) {
-            log(`📨 Fetching up to ${maxMessages} messages from ${group.name}`);
-            const messages = await group.fetchMessages({ limit: maxMessages });
-            const serialisedMessages = [];
-
-            for (const message of messages) {
-                serialisedMessages.push({
-                    id: message.id.id,
-                    body: message.body || '',
-                    timestamp_unix: message.timestamp,
-                    timestamp_iso: toIsoString(message.timestamp),
-                    author: message.author || message.from,
-                    from: message.from,
-                    to: message.to,
-                    type: message.type,
-                    has_media: Boolean(message.hasMedia),
-                    quoted_msg_id: message.quotedMsgId || null,
-                    is_forwarded: Boolean(message.isForwarded),
-                    is_starred: Boolean(message.isStarred),
-                });
+    if (includeMedia && message.hasMedia) {
+        try {
+            const media = await message.downloadMedia();
+            if (media) {
+                base.media = {
+                    mimetype: media.mimetype,
+                    filename: message.id.id,
+                    size: media.filesize || null,
+                    data: media.data,
+                };
             }
-
-            groupsPayload.push({
-                name: group.name,
-                id: group.id._serialized,
-                participants: Array.isArray(group.participants)
-                    ? group.participants.length
-                    : null,
-                messages: serialisedMessages,
-                summary: {
-                    total_messages: serialisedMessages.length,
-                    fetched_at: new Date().toISOString(),
-                },
-            });
+        } catch (error) {
+            stderrLog(`Failed to download media for message ${message.id.id}: ${error.message}`);
         }
+    }
 
-        emitResult({
-            status: 'SUCCESS',
-            groups: groupsPayload,
-            meta: {
-                backend: 'webjs',
-                scraped_at: new Date().toISOString(),
-                requested_groups: requestedGroups,
-                max_messages: maxMessages,
-                working_directory: path.resolve('.'),
-            },
+    return base;
+};
+
+const collectGroupMessages = async (client, chat, options) => {
+    const limit = options.groupLimits[chat.name] || options.limit;
+    stderrLog(`Fetching last ${limit} messages from ${chat.name}`);
+    const messages = await chat.fetchMessages({ limit });
+    const formatted = [];
+    for (const message of messages) {
+        // eslint-disable-next-line no-await-in-loop
+        formatted.push(await formatMessage(message, options.includeMedia));
+    }
+    return {
+        name: chat.name,
+        id: chat.id._serialized,
+        isGroup: Boolean(chat.isGroup),
+        participants: Array.isArray(chat.participants) ? chat.participants.length : null,
+        fetchedAt: new Date().toISOString(),
+        messages: formatted,
+        summary: {
+            totalMessages: formatted.length,
+            requestedLimit: limit,
+            includeMedia: options.includeMedia,
+        },
+    };
+};
+
+const resolveTargetChats = (chats, targetNames) => {
+    const lookup = new Map();
+    chats
+        .filter((chat) => chat.isGroup)
+        .forEach((chat) => {
+            lookup.set(chat.name, chat);
         });
-    } catch (error) {
-        log('❌ Error while scraping:', error.message);
-        emitResult(
-            {
-                status: 'FAIL',
-                error: error.message,
-            },
-            1,
-        );
-    } finally {
+
+    const missing = [];
+    const targets = [];
+    targetNames.forEach((name) => {
+        const chat = lookup.get(name);
+        if (chat) {
+            targets.push(chat);
+        } else {
+            missing.push(name);
+        }
+    });
+
+    return { targets, missing };
+};
+
+const shutdown = async (client, code = EXIT_CODES.SUCCESS) => {
+    try {
         await client.destroy();
-        log('🔌 Client connection closed.');
+    } catch (error) {
+        stderrLog(`Failed to destroy client cleanly: ${error.message}`);
     }
-});
+    process.exit(code);
+};
 
-client.on('disconnected', (reason) => {
-    log('🔌 Client disconnected:', reason);
-});
+const main = async () => {
+    let options;
+    try {
+        options = parseArguments(process.argv.slice(2));
+    } catch (error) {
+        stderrLog(`Argument parsing failed: ${error.message}`);
+        process.stdout.write(
+            JSON.stringify(
+                {
+                    status: "FAIL",
+                    error: error.message,
+                    timestamp: new Date().toISOString(),
+                },
+                null,
+                2,
+            ),
+        );
+        process.exit(EXIT_CODES.INVALID_ARGS);
+        return;
+    }
 
-client.on('error', (error) => {
-    log('❌ Client error:', error.message || error);
-});
+    const client = buildClient();
 
-client.initialize();
+    client.on("qr", (qr) => {
+        stderrLog("Scan the QR code to authenticate / QR 코드를 스캔하세요");
+        qrcode.generate(qr, { small: true }, (qrCodeString) => {
+            process.stderr.write(`${qrCodeString}\n`);
+        });
+    });
+
+    client.on("authenticated", () => {
+        stderrLog("Authentication successful / 인증 완료");
+    });
+
+    client.on("auth_failure", async (message) => {
+        if (readyTimer) {
+            clearTimeout(readyTimer);
+            readyTimer = null;
+        }
+        stderrLog(`Authentication failed: ${message}`);
+        process.stdout.write(
+            JSON.stringify(
+                {
+                    status: "FAIL",
+                    error: message,
+                    timestamp: new Date().toISOString(),
+                },
+                null,
+                2,
+            ),
+        );
+        await shutdown(client, EXIT_CODES.AUTH_FAILURE);
+    });
+
+    client.on("disconnected", (reason) => {
+        stderrLog(`Client disconnected: ${reason}`);
+    });
+
+    let readyTimer;
+
+    client.on("ready", async () => {
+        if (readyTimer) {
+            clearTimeout(readyTimer);
+            readyTimer = null;
+        }
+        stderrLog("Client is ready, loading chats");
+        const result = {
+            status: "SUCCESS",
+            backend: "webjs",
+            timestamp: new Date().toISOString(),
+            groups: [],
+            errors: [],
+        };
+
+        try {
+            const chats = await client.getChats();
+            const { targets, missing } = resolveTargetChats(chats, options.groups);
+
+            missing.forEach((name) => {
+                result.errors.push({ group: name, reason: "GROUP_NOT_FOUND" });
+            });
+
+            for (const chat of targets) {
+                try {
+                    // eslint-disable-next-line no-await-in-loop
+                    const groupResult = await collectGroupMessages(client, chat, options);
+                    result.groups.push(groupResult);
+                } catch (error) {
+                    stderrLog(`Failed to collect messages for ${chat.name}: ${error.message}`);
+                    result.errors.push({ group: chat.name, reason: error.message });
+                }
+            }
+
+            process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+            await shutdown(client, EXIT_CODES.SUCCESS);
+        } catch (error) {
+            stderrLog(`Unexpected runtime error: ${error.message}`);
+            process.stdout.write(
+                JSON.stringify(
+                    {
+                        status: "FAIL",
+                        error: error.message,
+                        timestamp: new Date().toISOString(),
+                    },
+                    null,
+                    2,
+                ),
+            );
+            await shutdown(client, EXIT_CODES.RUNTIME_ERROR);
+        }
+    });
+
+    process.on("SIGINT", async () => {
+        if (readyTimer) {
+            clearTimeout(readyTimer);
+            readyTimer = null;
+        }
+        stderrLog("Received SIGINT, shutting down");
+        await shutdown(client, EXIT_CODES.SUCCESS);
+    });
+
+    process.on("SIGTERM", async () => {
+        if (readyTimer) {
+            clearTimeout(readyTimer);
+            readyTimer = null;
+        }
+        stderrLog("Received SIGTERM, shutting down");
+        await shutdown(client, EXIT_CODES.SUCCESS);
+    });
+
+    try {
+        stderrLog("Initializing whatsapp-web.js client");
+        readyTimer = setTimeout(() => {
+            stderrLog("Initialization timeout reached");
+            process.stdout.write(
+                JSON.stringify(
+                    {
+                        status: "FAIL",
+                        error: "Initialization timeout",
+                        timestamp: new Date().toISOString(),
+                    },
+                    null,
+                    2,
+                ),
+            );
+            shutdown(client, EXIT_CODES.RUNTIME_ERROR);
+        }, options.timeout * 1000);
+        client.initialize();
+    } catch (error) {
+        stderrLog(`Failed to initialize client: ${error.message}`);
+        process.stdout.write(
+            JSON.stringify(
+                {
+                    status: "FAIL",
+                    error: error.message,
+                    timestamp: new Date().toISOString(),
+                },
+                null,
+                2,
+            ),
+        );
+        process.exit(EXIT_CODES.RUNTIME_ERROR);
+    }
+};
+
+main().catch((error) => {
+    stderrLog(`Unhandled exception: ${error.message}`);
+    process.stdout.write(
+        JSON.stringify(
+            {
+                status: "FAIL",
+                error: error.message,
+                timestamp: new Date().toISOString(),
+            },
+            null,
+            2,
+        ),
+    );
+    process.exit(EXIT_CODES.RUNTIME_ERROR);
+});

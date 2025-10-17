@@ -16,11 +16,13 @@ class WebJSSettings:
         script_dir (str): Node.js 스크립트 디렉터리입니다.
         timeout (int): 서브프로세스 실행 타임아웃(초)입니다.
         auto_install_deps (bool): 의존성 자동 설치 여부입니다.
+        include_media (bool): 미디어(base64) 포함 여부입니다.
     """
 
     script_dir: str = "setup/whatsapp_webjs"
     timeout: int = 300
     auto_install_deps: bool = True
+    include_media: bool = False
 
     def __post_init__(self) -> None:
         """설정 값을 검증합니다. (KR)
@@ -198,6 +200,9 @@ class MultiGroupConfig:
                 timeout=scraper_data.get("webjs_settings", {}).get("timeout", 300),
                 auto_install_deps=scraper_data.get("webjs_settings", {}).get(
                     "auto_install_deps", True
+                ),
+                include_media=scraper_data.get("webjs_settings", {}).get(
+                    "include_media", False
                 ),
             ),
         )
