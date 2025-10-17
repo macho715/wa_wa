@@ -1,186 +1,390 @@
 #!/usr/bin/env node
+"use strict";
+
 /**
- * WhatsApp Web.js 스크래퍼
- * MACHO-GPT v3.5-optimal WhatsApp Web.js 통합
- * 
- * 사용법: node whatsapp_webjs_scraper.js <group_name> [max_messages]
- * 예시: node whatsapp_webjs_scraper.js "HVDC 물류팀" 50
+ * MACHO-GPT whatsapp-web.js scraper
+ * Supports multi-group polling with optional media collection.
  */
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
-const fs = require('fs');
-const path = require('path');
+const { Client, LocalAuth } = require("whatsapp-web.js");
+const qrcode = require("qrcode-terminal");
 
-// CLI 인자 처리
-const args = process.argv.slice(2);
-const groupName = args[0];
-const maxMessages = parseInt(args[1]) || 50;
-const outputFile = args[2] || null;
+const DEFAULT_LIMIT = 50;
+const EXIT_CODES = {
+  SUCCESS: 0,
+  INVALID_ARGS: 2,
+  AUTH_FAILURE: 3,
+  RUNTIME_ERROR: 4,
+};
 
-if (!groupName) {
-    console.error('❌ 사용법: node whatsapp_webjs_scraper.js <group_name> [max_messages] [output_file]');
-    console.error('예시: node whatsapp_webjs_scraper.js "HVDC 물류팀" 50');
-    process.exit(1);
-}
+const stderrLog = (message) => {
+  const prefix = new Date().toISOString();
+  process.stderr.write(`[${prefix}] ${message}\n`);
+};
 
-console.log('🚀 MACHO-GPT v3.5-optimal WhatsApp Web.js 스크래퍼 시작');
-console.log(`📋 대상 그룹: ${groupName}`);
-console.log(`📊 최대 메시지 수: ${maxMessages}`);
+const parseArguments = (argv) => {
+  const options = {
+    groups: [],
+    limit: DEFAULT_LIMIT,
+    includeMedia: false,
+    timeout: 300,
+    groupLimits: {},
+  };
 
-// 클라이언트 설정
-const client = new Client({
-    authStrategy: new LocalAuth({
-        clientId: "macho-gpt-optimal"
-    }),
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    switch (token) {
+      case "--group":
+      case "--groups": {
+        const value = argv[index + 1];
+        if (!value) {
+          throw new Error("Missing value for --group(s)");
+        }
+        index += 1;
+        value
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0)
+          .forEach((entry) => options.groups.push(entry));
+        break;
+      }
+      case "--limit": {
+        const value = parseInt(argv[index + 1], 10);
+        if (Number.isNaN(value) || value <= 0) {
+          throw new Error("--limit must be a positive integer");
+        }
+        options.limit = value;
+        index += 1;
+        break;
+      }
+      case "--include-media": {
+        options.includeMedia = true;
+        break;
+      }
+      case "--timeout": {
+        const value = parseInt(argv[index + 1], 10);
+        if (Number.isNaN(value) || value <= 0) {
+          throw new Error("--timeout must be a positive integer");
+        }
+        options.timeout = value;
+        index += 1;
+        break;
+      }
+      case "--group-limit": {
+        const value = argv[index + 1];
+        if (!value || !value.includes("=")) {
+          throw new Error("--group-limit requires format <name>=<limit>");
+        }
+        index += 1;
+        const [name, limitValue] = value.split("=");
+        const parsed = parseInt(limitValue, 10);
+        if (!name || Number.isNaN(parsed) || parsed <= 0) {
+          throw new Error("Invalid --group-limit entry");
+        }
+        options.groupLimits[name.trim()] = parsed;
+        break;
+      }
+      default: {
+        options.groups.push(token);
+        break;
+      }
+    }
+  }
+
+  options.groups = [...new Set(options.groups)].filter((entry) => entry.length > 0);
+
+  if (options.groups.length === 0) {
+    throw new Error("At least one group must be provided");
+  }
+
+  return options;
+};
+
+const buildClient = () =>
+  new Client({
+    authStrategy: new LocalAuth({ clientId: "macho-gpt-optimal" }),
     puppeteer: {
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--disable-gpu'
-        ]
-    }
-});
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--no-first-run",
+        "--no-zygote",
+        "--disable-gpu",
+      ],
+    },
+  });
 
-// QR 코드 이벤트
-client.on('qr', (qr) => {
-    console.log('📱 QR 코드를 스캔하여 WhatsApp에 로그인하세요:');
-    qrcode.generate(qr, { small: true });
-    console.log('⏳ 로그인 대기 중...');
-});
+const formatMessage = async (message, includeMedia) => {
+  const base = {
+    id: message.id.id,
+    chatId: message.id._serialized,
+    body: message.body || "",
+    timestamp: message.timestamp,
+    timestampIso: new Date(message.timestamp * 1000).toISOString(),
+    from: message.from,
+    to: message.to,
+    author: message.author || message.from,
+    type: message.type,
+    isForwarded: Boolean(message.isForwarded),
+    hasQuotedMsg: Boolean(message.hasQuotedMsg),
+    quotedMsgId: message.quotedMsgId || null,
+    fromMe: Boolean(message.fromMe),
+  };
 
-// 인증 상태 이벤트
-client.on('authenticated', () => {
-    console.log('✅ WhatsApp 인증 완료');
-});
-
-// 인증 실패 이벤트
-client.on('auth_failure', (msg) => {
-    console.error('❌ 인증 실패:', msg);
-    process.exit(1);
-});
-
-// 연결 끊김 이벤트
-client.on('disconnected', (reason) => {
-    console.log('🔌 연결이 끊어졌습니다:', reason);
-});
-
-// 준비 완료 이벤트
-client.on('ready', async () => {
-    console.log('🎉 WhatsApp Web.js 클라이언트 준비 완료');
-    
+  if (includeMedia && message.hasMedia) {
     try {
-        // 채팅 목록 가져오기
-        console.log('📋 채팅 목록을 가져오는 중...');
-        const chats = await client.getChats();
-        
-        // 대상 그룹 찾기
-        const group = chats.find(chat => 
-            chat.isGroup && chat.name === groupName
-        );
-        
-        if (!group) {
-            console.error(`❌ 그룹을 찾을 수 없습니다: ${groupName}`);
-            console.log('📋 사용 가능한 그룹 목록:');
-            const groupChats = chats.filter(chat => chat.isGroup);
-            groupChats.forEach(chat => {
-                console.log(`  - ${chat.name}`);
-            });
-            await client.destroy();
-            process.exit(1);
-        }
-        
-        console.log(`✅ 그룹 발견: ${group.name}`);
-        console.log(`👥 참여자 수: ${group.participants.length}`);
-        
-        // 메시지 가져오기
-        console.log(`📨 최근 ${maxMessages}개 메시지를 가져오는 중...`);
-        const messages = await group.fetchMessages({ limit: maxMessages });
-        
-        console.log(`📊 ${messages.length}개 메시지 수집 완료`);
-        
-        // 메시지 데이터 변환
-        const messageData = messages.map(msg => ({
-            id: msg.id.id,
-            body: msg.body || '',
-            timestamp: msg.timestamp,
-            author: msg.author || msg.from,
-            from: msg.from,
-            to: msg.to,
-            type: msg.type,
-            isForwarded: msg.isForwarded,
-            isStarred: msg.isStarred,
-            hasQuotedMsg: msg.hasQuotedMsg,
-            quotedMsgId: msg.quotedMsgId,
-            media: msg.hasMedia ? {
-                mimetype: msg.media.mimetype,
-                filename: msg.media.filename,
-                size: msg.media.filesize
-            } : null
-        }));
-        
-        // 결과 데이터 구성
-        const result = {
-            status: 'SUCCESS',
-            timestamp: new Date().toISOString(),
-            group: {
-                name: group.name,
-                id: group.id.id,
-                participants: group.participants.length,
-                isGroup: group.isGroup
-            },
-            messages: messageData,
-            summary: {
-                total_messages: messageData.length,
-                scraped_at: new Date().toISOString(),
-                scraper_version: '3.5-optimal-webjs'
-            }
+      const media = await message.downloadMedia();
+      if (media) {
+        base.media = {
+          mimetype: media.mimetype,
+          filename: message.id.id,
+          size: media.filesize || null,
+          data: media.data,
         };
-        
-        // JSON 출력
-        const jsonOutput = JSON.stringify(result, null, 2);
-        
-        if (outputFile) {
-            // 파일로 저장
-            const outputPath = path.resolve(outputFile);
-            fs.writeFileSync(outputPath, jsonOutput, 'utf8');
-            console.log(`💾 결과가 파일에 저장되었습니다: ${outputPath}`);
-        } else {
-            // 콘솔에 출력
-            console.log('📄 결과 데이터:');
-            console.log(jsonOutput);
-        }
-        
-        console.log('✅ 스크래핑 완료!');
-        
+      }
     } catch (error) {
-        console.error('❌ 스크래핑 중 오류 발생:', error.message);
-        process.exit(1);
-    } finally {
-        // 클라이언트 종료
-        await client.destroy();
-        console.log('🔌 클라이언트 연결 종료');
+      stderrLog(`Failed to download media for message ${message.id.id}: ${error.message}`);
     }
-});
+  }
 
-// 에러 처리
-client.on('error', (error) => {
-    console.error('❌ 클라이언트 오류:', error);
-    process.exit(1);
-});
+  return base;
+};
 
-// 프로세스 종료 처리
-process.on('SIGINT', async () => {
-    console.log('\n⚠️  사용자에 의해 중단됨');
+const collectGroupMessages = async (client, chat, options) => {
+  const limit = options.groupLimits[chat.name] || options.limit;
+  stderrLog(`Fetching last ${limit} messages from ${chat.name}`);
+  const messages = await chat.fetchMessages({ limit });
+  const formatted = [];
+  for (const message of messages) {
+    // eslint-disable-next-line no-await-in-loop
+    formatted.push(await formatMessage(message, options.includeMedia));
+  }
+  return {
+    name: chat.name,
+    id: chat.id._serialized,
+    isGroup: Boolean(chat.isGroup),
+    participants: Array.isArray(chat.participants) ? chat.participants.length : null,
+    fetchedAt: new Date().toISOString(),
+    messages: formatted,
+    summary: {
+      totalMessages: formatted.length,
+      requestedLimit: limit,
+      includeMedia: options.includeMedia,
+    },
+  };
+};
+
+const resolveTargetChats = (chats, targetNames) => {
+  const lookup = new Map();
+  chats
+    .filter((chat) => chat.isGroup)
+    .forEach((chat) => {
+      lookup.set(chat.name, chat);
+    });
+
+  const missing = [];
+  const targets = [];
+  targetNames.forEach((name) => {
+    const chat = lookup.get(name);
+    if (chat) {
+      targets.push(chat);
+    } else {
+      missing.push(name);
+    }
+  });
+
+  return { targets, missing };
+};
+
+const shutdown = async (client, code = EXIT_CODES.SUCCESS) => {
+  try {
     await client.destroy();
-    process.exit(0);
-});
+  } catch (error) {
+    stderrLog(`Failed to destroy client cleanly: ${error.message}`);
+  }
+  process.exit(code);
+};
 
-// 클라이언트 초기화
-console.log('🔄 WhatsApp Web.js 클라이언트 초기화 중...');
-client.initialize();
+const main = async () => {
+  let options;
+  try {
+    options = parseArguments(process.argv.slice(2));
+  } catch (error) {
+    stderrLog(`Argument parsing failed: ${error.message}`);
+    process.stdout.write(
+      JSON.stringify(
+        {
+          status: "FAIL",
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
+    process.exit(EXIT_CODES.INVALID_ARGS);
+    return;
+  }
+
+  const client = buildClient();
+
+  client.on("qr", (qr) => {
+    stderrLog("Scan the QR code to authenticate / QR 코드를 스캔하세요");
+    qrcode.generate(qr, { small: true }, (qrCodeString) => {
+      process.stderr.write(`${qrCodeString}\n`);
+    });
+  });
+
+  client.on("authenticated", () => {
+    stderrLog("Authentication successful / 인증 완료");
+  });
+
+  client.on("auth_failure", async (message) => {
+    if (readyTimer) {
+      clearTimeout(readyTimer);
+      readyTimer = null;
+    }
+    stderrLog(`Authentication failed: ${message}`);
+    process.stdout.write(
+      JSON.stringify(
+        {
+          status: "FAIL",
+          error: message,
+          timestamp: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
+    await shutdown(client, EXIT_CODES.AUTH_FAILURE);
+  });
+
+  client.on("disconnected", (reason) => {
+    stderrLog(`Client disconnected: ${reason}`);
+  });
+
+  let readyTimer;
+
+  client.on("ready", async () => {
+    if (readyTimer) {
+      clearTimeout(readyTimer);
+      readyTimer = null;
+    }
+    stderrLog("Client is ready, loading chats");
+    const result = {
+      status: "SUCCESS",
+      backend: "webjs",
+      timestamp: new Date().toISOString(),
+      groups: [],
+      errors: [],
+    };
+
+    try {
+      const chats = await client.getChats();
+      const { targets, missing } = resolveTargetChats(chats, options.groups);
+
+      missing.forEach((name) => {
+        result.errors.push({ group: name, reason: "GROUP_NOT_FOUND" });
+      });
+
+      for (const chat of targets) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const groupResult = await collectGroupMessages(client, chat, options);
+          result.groups.push(groupResult);
+        } catch (error) {
+          stderrLog(`Failed to collect messages for ${chat.name}: ${error.message}`);
+          result.errors.push({ group: chat.name, reason: error.message });
+        }
+      }
+
+      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      await shutdown(client, EXIT_CODES.SUCCESS);
+    } catch (error) {
+      stderrLog(`Unexpected runtime error: ${error.message}`);
+      process.stdout.write(
+        JSON.stringify(
+          {
+            status: "FAIL",
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+      await shutdown(client, EXIT_CODES.RUNTIME_ERROR);
+    }
+  });
+
+  process.on("SIGINT", async () => {
+    if (readyTimer) {
+      clearTimeout(readyTimer);
+      readyTimer = null;
+    }
+    stderrLog("Received SIGINT, shutting down");
+    await shutdown(client, EXIT_CODES.SUCCESS);
+  });
+
+  process.on("SIGTERM", async () => {
+    if (readyTimer) {
+      clearTimeout(readyTimer);
+      readyTimer = null;
+    }
+    stderrLog("Received SIGTERM, shutting down");
+    await shutdown(client, EXIT_CODES.SUCCESS);
+  });
+
+  try {
+    stderrLog("Initializing whatsapp-web.js client");
+    readyTimer = setTimeout(() => {
+      stderrLog("Initialization timeout reached");
+      process.stdout.write(
+        JSON.stringify(
+          {
+            status: "FAIL",
+            error: "Initialization timeout",
+            timestamp: new Date().toISOString(),
+          },
+          null,
+          2,
+        ),
+      );
+      shutdown(client, EXIT_CODES.RUNTIME_ERROR);
+    }, options.timeout * 1000);
+    client.initialize();
+  } catch (error) {
+    stderrLog(`Failed to initialize client: ${error.message}`);
+    process.stdout.write(
+      JSON.stringify(
+        {
+          status: "FAIL",
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+    );
+    process.exit(EXIT_CODES.RUNTIME_ERROR);
+  }
+};
+
+main().catch((error) => {
+  stderrLog(`Unhandled exception: ${error.message}`);
+  process.stdout.write(
+    JSON.stringify(
+      {
+        status: "FAIL",
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
+  process.exit(EXIT_CODES.RUNTIME_ERROR);
+});
