@@ -366,6 +366,25 @@ class TestMultiGroupManager:
         assert manager.max_parallel_groups == 3
         assert len(manager.scrapers) == 0  # 아직 스크래퍼 생성 안됨
 
+    def test_should_assign_unique_chrome_profiles(
+        self, mock_group_configs, tmp_path
+    ):
+        """각 그룹에 고유한 Chrome 데이터 디렉토리를 할당해야 함"""
+
+        manager = MultiGroupManager(
+            group_configs=mock_group_configs,
+            max_parallel_groups=3,
+            chrome_data_root=str(tmp_path),
+        )
+
+        chrome_dirs = set()
+        for group in mock_group_configs:
+            scraper = manager._create_scraper(group)
+            assert scraper.chrome_data_dir.startswith(str(tmp_path))
+            chrome_dirs.add(scraper.chrome_data_dir)
+
+        assert len(chrome_dirs) == len(mock_group_configs)
+
     @pytest.mark.asyncio
     async def test_should_create_individual_scrapers_per_group(
         self, mock_group_configs
